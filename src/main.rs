@@ -1,0 +1,48 @@
+use clap::{Parser, ValueEnum};
+use std::path::PathBuf;
+
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, ValueEnum)]
+enum Mode {
+    Encrypt,
+    Decrypt,
+}
+
+/// Command-line arguments
+#[derive(Parser, Debug)]
+#[command(
+    author = "Joe Lopes <lopes.id>",
+    version = "0.1.0",
+    about = "Rust ransomware, for learning not looting",
+    long_about = "Cordyceps is an educational ransomware designed for academic and research purposes."
+)]
+struct Args {
+    /// Mode: encrypt or decrypt
+    #[arg(short = 'm', long, default_value = "encrypt")]
+    mode: Mode,
+
+    /// Root directory
+    #[arg(short = 'p', long, default_value = ".")]
+    path: PathBuf,
+
+    /// Do not delete original files after encryption--encryption mode only
+    #[arg(short = 'n', long)]
+    no_delete: bool,
+
+    /// Server address for exfiltration--encryption mode only
+    #[arg(short = 's', long, default_value = "http://localhost:8080")]
+    server: String,
+
+    /// Target folder on the server for exfiltration--encryption mode only
+    #[arg(short = 't', long)]
+    target_folder: Option<String>,
+
+    /// Path to the server private key--decryption mode only
+    #[arg(short = 'k', long, default_value = "server_ed25519_private.key")]
+    key: Option<PathBuf>,
+}
+
+fn main() {
+    let args = Args::parse();
+
+    println!("{:?}", args);
+}
