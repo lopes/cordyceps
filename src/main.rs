@@ -1,4 +1,5 @@
 use clap::{Parser, ValueEnum};
+use log::info;
 use std::path::PathBuf;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, ValueEnum)]
@@ -38,11 +39,27 @@ struct Args {
 
     /// Path to the server private key--decryption mode only
     #[arg(short = 'k', long, default_value = "server_ed25519_private.key")]
-    key: Option<PathBuf>,
+    key: PathBuf,
 }
 
 fn main() {
+    env_logger::init();
     let args = Args::parse();
 
-    println!("{:?}", args);
+    match args.mode {
+        Mode::Encrypt => {
+            info!(
+                "call ENCRYPTION module: path: {}, keep..? {}, server: {}, folder: {}",
+                args.path.display(),
+                args.no_delete,
+                args.server,
+                args.target_folder.unwrap_or("/".to_string()),
+            );
+        }
+        Mode::Decrypt => info!(
+            "call DECRYPTION module: path..: {} key...: {}",
+            args.path.display(),
+            args.key.display(),
+        ),
+    }
 }
