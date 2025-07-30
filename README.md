@@ -54,7 +54,7 @@ This project is a **technical demonstration**, not a weapon. Do not use Cordycep
 Cordyceps operates via command-line arguments, allowing flexible control over its behavior.
 
 ### Command Line Options
-- `-m, --mode <MODE>`: Sets the tool's operation. Choose `encryption` to encrypt and send files, or `decryption` to restore `.zombie` files. (Default: `encryption`)
+- `-m, --mode <MODE>`: Sets the tool's operation. Choose `encrypt` to encrypt and send files, or `decrypt` to restore `.zombie` files. (Default: `encryption`)
 - `-p, --path <DIRECTORY>`: Specifies the starting directory for file processing. (Default: current directory `.`)
 - `-n, --no-delete`: (Encryption only) Prevents the original file from being deleted after successful encryption and transmission. (Default: `false`, original file is deleted)
 - `-s, --server <ADDRESS>`: (Encryption only) The URL of the server to send encrypted files to (e.g., `https://your.exfil.server:8443`). (Default: `http://localhost:8080`)
