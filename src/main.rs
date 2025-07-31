@@ -28,9 +28,15 @@
 //!
 //! ---
 
+use log::error;
+
 mod cli;
 
 fn main() {
     env_logger::init();
-    cli::run();
+
+    if let Err(e) = cli::run() {
+        error!("Application error: {}", e);
+        std::process::exit(1);
+    }
 }
