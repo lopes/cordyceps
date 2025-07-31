@@ -17,7 +17,7 @@
 //! to the project's [README.md](https://github.com/lopes/cordyceps).
 //!
 //! ```sh
-//! cargo run -- --help
+//! cordyceps --help
 //! ```
 //!
 //! ## Contributing & License
