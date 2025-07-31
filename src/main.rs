@@ -2,7 +2,7 @@ use clap::{Parser, ValueEnum};
 use log::info;
 use std::path::PathBuf;
 
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, ValueEnum)]
+#[derive(ValueEnum, Debug, Clone)]
 enum Mode {
     Encrypt,
     Decrypt,
@@ -47,17 +47,15 @@ fn main() {
     let args = Args::parse();
 
     match args.mode {
-        Mode::Encrypt => {
-            info!(
-                "call ENCRYPTION module: path: {}, keep..? {}, server: {}, folder: {}",
-                args.path.display(),
-                args.no_delete,
-                args.server,
-                args.target_folder.unwrap_or("/".to_string()),
-            );
-        }
+        Mode::Encrypt => info!(
+            "call ENCRYPTION module: path:{}, keep?{}, server:{}, folder:{}",
+            args.path.display(),
+            args.no_delete,
+            args.server,
+            args.target_folder.unwrap_or("/".to_string()),
+        ),
         Mode::Decrypt => info!(
-            "call DECRYPTION module: path..: {} key...: {}",
+            "call DECRYPTION module: path:{}, key:{}",
             args.path.display(),
             args.key.display(),
         ),
