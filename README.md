@@ -1,4 +1,7 @@
 # Cordyceps
+
+<img src="https://github.com/lopes/cordyceps/raw/main/assets/cordyceps-logo-192.png" align="left" alt="Cordyceps logo">
+
 **Cordyceps** is an educational, Rust-based command-line **ransomware** ☣️ designed for academic and research purposes. It demonstrates the core mechanisms of file encryption, exfiltration, and decryption using modern cryptographic practices.
 
 > [!CAUTION]
