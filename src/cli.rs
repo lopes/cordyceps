@@ -1,7 +1,7 @@
 //! CLI parsing and mode dispatch logic.
 //!
-//! This module handles all command-line interface logic,
-//! including argument parsing and delegation to encryption or decryption routines.
+//! This module handles all command-line interface logic, including argument
+//! parsing and delegation to encryption or decryption routines.
 
 use clap::{Parser, ValueEnum};
 use log::info;
@@ -47,10 +47,12 @@ struct Args {
     key: PathBuf,
 }
 
-/// Parses CLI arguments and executes the appropriate application mode (encrypt or decrypt).
+/// Parses CLI arguments and executes the appropriate application mode
+/// (encrypt or decrypt).
 ///
 /// This function serves as the entry point for command-line interaction.
-/// It determines the mode selected by the user and delegates to the corresponding logic.
+/// It determines the mode selected by the user and delegates to the
+/// corresponding logic.
 pub fn run() {
     let args = Args::parse();
 
