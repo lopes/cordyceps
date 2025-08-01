@@ -57,7 +57,7 @@ This project is a **technical demonstration**, not a weapon. Do not use Cordycep
 Cordyceps operates via command-line arguments, allowing flexible control over its behavior.
 
 ### Command Line Options
-Cordyceps uses subcommands to handle different modes of operation. To use the tool, you must specify either the `encrypt` or `decrypt` command, each with its own set of options. If in doubt, run `cordyceps -h`.
+Cordyceps uses subcommands to handle different modes of operation. To use the tool, you must specify either the `encrypt` or `decrypt` command, each with its own set of options. If in doubt, run `cordyceps help`.
 
 #### `encrypt` Command
 Use the `encrypt` command to begin the encryption and exfiltration process.
