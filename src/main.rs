@@ -17,7 +17,7 @@
 //! to the project's [README.md](https://github.com/lopes/cordyceps).
 //!
 //! ```sh
-//! cordyceps --help
+//! cordyceps help
 //! ```
 //!
 //! ## Contributing & License
@@ -28,9 +28,10 @@
 //!
 //! ---
 
-use log::error;
-
 mod cli;
+mod crypto;
+
+use log::error;
 
 fn main() {
     env_logger::init();
