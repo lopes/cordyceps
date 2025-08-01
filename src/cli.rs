@@ -3,30 +3,12 @@
 //! This module handles all command-line interface logic, including argument
 //! parsing and delegation to encryption or decryption routines.
 
-use clap::{Parser, ValueEnum};
+use clap::Parser;
 use log::info;
 use std::error::Error;
-use std::fmt;
 use std::path::PathBuf;
 
-// Custom error type for a more explicit and descriptive error handling
-#[derive(Debug)]
-pub struct CliError(String);
-
-impl fmt::Display for CliError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "CLI Error: {}", self.0)
-    }
-}
-
-// CliError can be used as a generic error type via Box<dyn Error> in run()
-impl Error for CliError {}
-
-#[derive(ValueEnum, Debug, Clone)]
-enum Mode {
-    Encrypt,
-    Decrypt,
-}
+use crate::crypto;
 
 /// Command-line arguments
 #[derive(Parser, Debug)]
@@ -88,42 +70,41 @@ pub fn run() -> Result<(), Box<dyn Error>> {
     match args {
         Cli::Encrypt(args) => {
             info!("Starting the encryption module...");
-            encrypt(args.path, args.no_delete, args.server, args.target_folder)
+            crypto::encrypt(args.path, args.no_delete, args.server, args.target_folder)
         }
         Cli::Decrypt(args) => {
             info!("Starting the decryption module...");
-            decrypt(args.path, args.key)
+            crypto::decrypt(args.path, args.key)
         }
     }
 }
 
-fn encrypt(
-    path: PathBuf,
-    no_delete: bool,
-    server: String,
-    target_folder: Option<String>,
-) -> Result<(), Box<dyn Error>> {
-    info!(
-        "Encryption started: Path: {}, Keep files? {}, Server: {}, Folder: {}",
-        path.display(),
-        no_delete,
-        server,
-        target_folder.unwrap_or("/".to_string())
-    );
-    // additional tests, like path exists? server is reachable?
-    // magic
-    info!("Encryption finished successfully");
-    Ok(())
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
 
-fn decrypt(path: PathBuf, key: PathBuf) -> Result<(), Box<dyn Error>> {
-    info!(
-        "Decryption started. Path: {}, Key: {}",
-        path.display(),
-        key.display()
-    );
-    // tests, like key exists? path is valid?
-    // magic
-    info!("Decryption finished successfully");
-    Ok(())
+    #[test]
+    fn test_encrypt_args_parsing() {
+        let args = Cli::parse_from([
+            "app",
+            "encrypt",
+            "-p",
+            "/tmp",
+            "-n",
+            "-s",
+            "http://example.com",
+            "-t",
+            "backup",
+        ]);
+
+        if let Cli::Encrypt(args) = args {
+            assert_eq!(args.path.to_str().unwrap(), "/tmp");
+            assert!(args.no_delete);
+            assert_eq!(args.server, "http://example.com");
+            assert_eq!(args.target_folder.unwrap(), "backup");
+        } else {
+            panic!("Expected encrypt args");
+        }
+    }
 }
