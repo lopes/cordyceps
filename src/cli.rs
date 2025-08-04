@@ -5,10 +5,10 @@
 
 use clap::Parser;
 use log::info;
-use std::error::Error;
+use std::io;
 use std::path::PathBuf;
 
-use crate::crypto;
+use crate::fsutils;
 
 /// Command-line arguments
 #[derive(Parser, Debug)]
@@ -61,7 +61,7 @@ struct DecryptArgs {
 /// This function serves as the entry point for command-line interaction.
 /// It determines the mode selected by the user and delegates to the
 /// corresponding logic.
-pub fn run() -> Result<(), Box<dyn Error>> {
+pub fn run() -> Result<(), io::Error> {
     let args = Cli::parse();
 
     // Call the appropriate function based on the mode
@@ -70,11 +70,11 @@ pub fn run() -> Result<(), Box<dyn Error>> {
     match args {
         Cli::Encrypt(args) => {
             info!("Starting the encryption module...");
-            crypto::encrypt(args.path, args.no_delete, args.server, args.target_folder)
+            fsutils::encrypt(args.path, args.no_delete, args.server, args.target_folder)
         }
         Cli::Decrypt(args) => {
             info!("Starting the decryption module...");
-            crypto::decrypt(args.path, args.key)
+            fsutils::decrypt(args.path, args.key)
         }
     }
 }
