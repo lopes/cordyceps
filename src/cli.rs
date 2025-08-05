@@ -4,7 +4,7 @@
 //! parsing and delegation to encryption or decryption routines.
 
 use clap::Parser;
-use log::info;
+use log::{debug, info};
 use std::io;
 use std::path::PathBuf;
 
@@ -63,19 +63,14 @@ struct DecryptArgs {
 /// corresponding logic.
 pub fn run() -> Result<(), io::Error> {
     let args = Cli::parse();
+    info!("Arguments parsed and loaded");
+    debug!("Arguments: {:?}", args);
 
-    // Call the appropriate function based on the mode
-    // The ? operator is used to propagate errors from encrypt or decrypt
-    // up to the caller--main()
     match args {
         Cli::Encrypt(args) => {
-            info!("Starting the encryption module...");
             fsutils::encrypt(args.path, args.no_delete, args.server, args.target_folder)
         }
-        Cli::Decrypt(args) => {
-            info!("Starting the decryption module...");
-            fsutils::decrypt(args.path, args.key)
-        }
+        Cli::Decrypt(args) => fsutils::decrypt(args.path, args.key),
     }
 }
 
