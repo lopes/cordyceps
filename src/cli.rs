@@ -3,9 +3,9 @@
 //! This module handles all command-line interface logic, including argument
 //! parsing and delegation to encryption or decryption routines.
 
+use crate::error::AppError;
 use clap::Parser;
 use log::{debug, info};
-use std::error::Error;
 use std::path::PathBuf;
 
 use crate::fsutils::{disinfect, sporulate};
@@ -14,7 +14,7 @@ use crate::fsutils::{disinfect, sporulate};
 #[derive(Parser, Debug)]
 #[command(
     author = "Joe Lopes <lopes.id>",
-    version = "0.3.0",
+    version = "0.4.0",
     about = "Rust ransomware, for learning not looting",
     long_about = "Cordyceps is an educational ransomware designed for academic and research purposes."
 )]
@@ -61,18 +61,20 @@ struct DecryptArgs {
 /// This function serves as the entry point for command-line interaction.
 /// It determines the mode selected by the user and delegates to the
 /// corresponding logic.
-pub fn run() -> Result<(), Box<dyn Error>> {
+pub fn run() -> Result<(), AppError> {
     let args = Cli::try_parse()?;
     info!("Arguments parsed and loaded");
     debug!("Arguments: {:?}", args);
 
     match args {
-        Cli::Encrypt(args) => sporulate(args.path, args.no_delete, args.server, args.target_folder),
-        Cli::Decrypt(args) => disinfect(args.path, args.key),
+        Cli::Encrypt(args) => sporulate(
+            &args.path,
+            &args.no_delete,
+            &args.server,
+            &args.target_folder,
+        ),
+        Cli::Decrypt(args) => disinfect(&args.path, &args.key),
     }
-    // Converts downstream errors because because the function
-    // returns Result with Box<dyn std::error::Error>
-    .map_err(|e| Box::new(e) as Box<dyn Error>)
 }
 
 #[cfg(test)]
