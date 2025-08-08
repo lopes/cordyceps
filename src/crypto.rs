@@ -5,15 +5,25 @@
 //! routines, and is responsible for handling cryptographic workflows,
 //! such as file processing, key usage, and optional exfiltration.
 
-use std::io::Error;
+use std::path::{Path, PathBuf};
+
+use crate::error::CryptoError;
 
 /// Encrypted files extension.
 pub const EXTENSION: &'static str = "zombie";
 
-pub fn encrypt() -> Result<(), Error> {
-    todo!()
+/// Encrypts a file using AES-GCM and ECIES for key encapsulation.
+/// Returns the encrypted file (`.zombie`) path or a CryptoError.
+pub fn encrypt(path: &Path) -> Result<PathBuf, CryptoError> {
+    // TODO
+    println!("Will encrypt: {:?}", path);
+    Ok(path.to_path_buf())
 }
 
-pub fn decrypt() -> Result<(), Error> {
-    todo!()
+/// Decrypts a `.zombie` file.
+/// Requires the corresponding private key to the master public key.
+pub fn decrypt(path: &Path, key: &Path) -> Result<PathBuf, CryptoError> {
+    // TODO
+    println!("Will decrypt: {:?} with key {:?}", path, key);
+    Ok(path.to_path_buf())
 }
