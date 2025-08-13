@@ -13,23 +13,28 @@
 //! makes error handling more maintainable and less prone to errors.
 
 use std::io;
+
+use rand_core;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
-pub enum CryptoError {}
+pub enum CryptoError {
+    #[error("File I/O error during crypto operation: {0}")]
+    Io(#[from] io::Error),
+    #[error("Failed to generate random bytes: {0}")]
+    RandomGenError(#[from] rand_core::Error),
+    #[error("Symmetric key encryption failed: {0}")]
+    SymmetricEncryptError(String),
+    #[error("Key derivation function (KDF) error.")]
+    KdfError,
+}
 
 #[derive(Error, Debug)]
 pub enum AppError {
-    // Implements `From<CryptoError>` and displays the inner message.
     #[error("Crypto error: {0}")]
     Crypto(#[from] CryptoError),
-
-    // Handles `io::Error`. Message is customized to provide more context.
-    // The `#[from]` makes the `?` operator work seamlessly.
     #[error("I/O error: {0}")]
     Io(#[from] io::Error),
-
-    // The `#[from]` attribute here handles the `clap::Error` conversion.
     #[error("CLI error: {0}")]
     Cli(#[from] clap::Error),
 }
