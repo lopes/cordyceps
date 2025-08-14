@@ -21,20 +21,39 @@ use thiserror::Error;
 pub enum CryptoError {
     #[error("File I/O error during crypto operation: {0}")]
     Io(#[from] io::Error),
+
     #[error("Failed to generate random bytes: {0}")]
     RandomGenError(#[from] rand_core::Error),
+
     #[error("Symmetric key encryption failed: {0}")]
     SymmetricEncryptError(String),
+
     #[error("Key derivation function (KDF) error.")]
     KdfError,
+
+    #[error("Invalid private key length: expected 32 bytes.")]
+    InvalidPrivateKey,
+
+    #[error("Invalid zombie file format: {0}")]
+    InvalidZombieFile(String),
+
+    #[error("Symmetric key decryption failed: {0}")]
+    SymmetricDecryptError(String),
+
+    #[error(
+        "Authentication tag mismatch during decryption. Data might be tampered or key is incorrect."
+    )]
+    AuthenticationTagMismatch,
 }
 
 #[derive(Error, Debug)]
 pub enum AppError {
     #[error("Crypto error: {0}")]
     Crypto(#[from] CryptoError),
+
     #[error("I/O error: {0}")]
     Io(#[from] io::Error),
+
     #[error("CLI error: {0}")]
     Cli(#[from] clap::Error),
 }
