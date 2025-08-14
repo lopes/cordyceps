@@ -8,6 +8,7 @@ use clap::Parser;
 use log::{debug, info};
 use std::path::PathBuf;
 
+use crate::crypto::generate;
 use crate::fsutils::{disinfect, sporulate};
 
 /// Command-line arguments
@@ -21,6 +22,7 @@ use crate::fsutils::{disinfect, sporulate};
 enum Cli {
     Encrypt(EncryptArgs),
     Decrypt(DecryptArgs),
+    Generate(GenerateArgs),
 }
 
 #[derive(Parser, Debug)]
@@ -55,6 +57,13 @@ struct DecryptArgs {
     key: PathBuf,
 }
 
+#[derive(Parser, Debug)]
+#[command(about = "Generate new master key pair")]
+struct GenerateArgs {
+    #[arg(short = 'p', long, default_value = "server_ed25519_private.key")]
+    path: PathBuf,
+}
+
 /// Parses CLI arguments and executes the appropriate application mode
 /// (encrypt or decrypt).
 ///
@@ -62,7 +71,11 @@ struct DecryptArgs {
 /// It determines the mode selected by the user and delegates to the
 /// corresponding logic.
 pub fn run() -> Result<(), AppError> {
-    let args = Cli::try_parse()?;
+    let args = match Cli::try_parse() {
+        Ok(args) => args,
+        Err(e) => e.exit(),
+    };
+
     info!("Arguments parsed and loaded");
     debug!("Arguments: {:?}", args);
 
@@ -74,6 +87,7 @@ pub fn run() -> Result<(), AppError> {
             &args.target_folder,
         ),
         Cli::Decrypt(args) => disinfect(&args.path, &args.key),
+        Cli::Generate(args) => generate(&args.path),
     }
 }
 
