@@ -14,6 +14,7 @@
 
 use std::io;
 
+use base64;
 use rand_core;
 use thiserror::Error;
 
@@ -54,6 +55,9 @@ pub enum AppError {
     #[error("I/O error: {0}")]
     Io(#[from] io::Error),
 
-    #[error("CLI error: {0}")]
-    Cli(#[from] clap::Error),
+    #[error("Base64 decoding failed: {0}")]
+    Base64DecodeError(#[from] base64::DecodeError),
+
+    #[error("Base64 decoding failed")]
+    InvalidLengthError,
 }
