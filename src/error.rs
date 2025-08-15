@@ -45,6 +45,12 @@ pub enum CryptoError {
         "Authentication tag mismatch during decryption. Data might be tampered or key is incorrect."
     )]
     AuthenticationTagMismatch,
+
+    #[error("Base64 decoding failed: {0}")]
+    Base64DecodeError(#[from] base64::DecodeError),
+
+    #[error("Base64 decoding failed")]
+    InvalidLengthError,
 }
 
 #[derive(Error, Debug)]
@@ -54,10 +60,4 @@ pub enum AppError {
 
     #[error("I/O error: {0}")]
     Io(#[from] io::Error),
-
-    #[error("Base64 decoding failed: {0}")]
-    Base64DecodeError(#[from] base64::DecodeError),
-
-    #[error("Base64 decoding failed")]
-    InvalidLengthError,
 }
