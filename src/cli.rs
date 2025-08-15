@@ -87,7 +87,11 @@ pub fn run() -> Result<(), AppError> {
             &args.target_folder,
         ),
         Cli::Decrypt(args) => disinfect(&args.path, &args.key),
-        Cli::Generate(args) => generate(&args.path),
+        Cli::Generate(args) => {
+            // must convert CryptoError to AppError
+            generate(&args.path)?;
+            Ok(())
+        }
     }
 }
 
