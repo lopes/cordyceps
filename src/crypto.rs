@@ -13,6 +13,8 @@ use aes_gcm::{
     Aes256Gcm,
     aead::{Aead, KeyInit, Nonce},
 };
+use base64::Engine;
+use base64::engine::general_purpose::{STANDARD, STANDARD_NO_PAD};
 use hkdf::Hkdf;
 use log::{debug, error, info};
 use rand::{RngCore, rngs::OsRng};
@@ -27,12 +29,6 @@ pub const EXTENSION: &'static str = "zombie";
 const MAGIC_BYTES: &[u8; 4] = b"CORD";
 /// .zombie file format version
 const FILE_FORMAT_VERSION: u8 = 0x01;
-
-/// Master public key used by the encryptor to encapsulate the AES key
-const MASTER_PUBLIC_KEY_BYTES: [u8; 32] = [
-    0x8e, 0x1f, 0x5a, 0x2b, 0x9c, 0x7e, 0x4d, 0x3f, 0x6a, 0x81, 0x05, 0x3d, 0x2c, 0x1a, 0x9b, 0x0f,
-    0x7e, 0x6d, 0x3a, 0x1b, 0x9f, 0x0c, 0x8e, 0x1d, 0x5b, 0x2a, 0x9d, 0x7c, 0x4e, 0x3d, 0x6b, 0x82,
-];
 
 /// .zombie header size in bytes:
 /// - Magic.......................: 04
@@ -63,7 +59,7 @@ const ZOMBIE_HEADER_SIZE: usize = 4 + 1 + 32 + 48 + 12; // = 97 bytes
 /// # Returns
 /// A `Result` containing the path to the newly created `.zombie` file on
 /// success, or a `CryptoError` if encryption fails.
-pub fn encrypt(path: &Path) -> Result<PathBuf, CryptoError> {
+pub fn encrypt(path: &Path, master_pk_bytes: &[u8; 32]) -> Result<PathBuf, CryptoError> {
     info!("Starting encryption for file: {:?}", path);
 
     // 1. Read file content
@@ -106,7 +102,9 @@ pub fn encrypt(path: &Path) -> Result<PathBuf, CryptoError> {
     let ephemeral_public = PublicKey::from(&ephemeral_secret);
     debug!("Generated ephemeral Curve25519 key pair");
 
-    let master_public_key = PublicKey::from(MASTER_PUBLIC_KEY_BYTES);
+    // PublicKey expects an owned an owned array and master_pk_bytes is
+    // a reference (&[u8; 32]), so it must be dereferenced with *
+    let master_public_key = PublicKey::from(*master_pk_bytes);
     debug!("Master public key loaded");
 
     let shared_secret = ephemeral_secret.diffie_hellman(&master_public_key);
@@ -394,15 +392,68 @@ pub fn decrypt(path: &Path, key: &Path) -> Result<PathBuf, CryptoError> {
 pub fn generate(private_key_path: &Path) -> Result<(), AppError> {
     info!("Generating new master key pair");
 
-    let master_private_key = StaticSecret::random_from_rng(OsRng);
+    let private_key = StaticSecret::random_from_rng(OsRng);
+    let private_key_bytes = private_key.to_bytes();
 
-    let master_public_key: PublicKey = (&master_private_key).into();
-    let public_key_bytes = master_public_key.to_bytes();
+    let public_key: PublicKey = (&private_key).into();
+    let public_key_bytes = public_key.to_bytes();
+
+    let public_key_b64 = b64_encode(&public_key_bytes);
+    let private_key_b64 = b64_encode(&private_key_bytes);
 
     let mut file = File::create(private_key_path)?;
-    file.write_all(master_private_key.to_bytes().as_ref())?;
+    file.write_all(private_key_b64.as_ref())?;
     info!("Master private key saved to: {:?}", private_key_path);
-    debug!("Generated public key (bytes): {:?}", public_key_bytes);
+    println!("Generated public key (base 64): {:?}", public_key_b64);
+
+    // Making sure the encoded keys are valid
+    if let Ok(prikey) = b64_decode(&private_key_b64) {
+        assert_eq!(private_key_bytes, prikey);
+    }
+    if let Ok(pubkey) = b64_decode(&public_key_b64) {
+        assert_eq!(private_key_bytes, pubkey);
+    }
 
     Ok(())
+}
+
+/// Encodes a byte slice into a Base64 string.
+///
+/// This function takes a byte slice and encodes it into a standard Base64 string
+/// using the `STANDARD_NO_PAD` engine. This is a common choice for cryptographic
+/// keys or hashes as it omits the trailing padding characters (`=`).
+///
+/// # Arguments
+/// - `key_bytes`: The byte slice (`&[u8]`) to be encoded.
+///
+/// # Returns
+/// A `String` containing the Base64-encoded representation of the input bytes.
+pub fn b64_encode(key_bytes: &[u8]) -> String {
+    STANDARD_NO_PAD.encode(key_bytes)
+}
+
+/// Decodes a Base64 string into a byte vector.
+///
+/// This function decodes a Base64 string using the `STANDARD` engine, which can
+/// successfully decode both padded and unpadded Base64 strings. It returns an
+/// `AppError` if the input string contains invalid Base64 characters.
+///
+/// The function assures to return a fixed-length array of 32 bytes because its
+/// the expected input for the encryption function.
+///
+/// # Arguments
+/// - `key_b64`: The Base64-encoded string slice (`&str`) to be decoded.
+///
+/// # Returns
+/// A `Result` containing the decoded bytes ([u8; 32]) on success or an
+/// `AppError` if the decoding fails.
+pub fn b64_decode(key_b64: &str) -> Result<[u8; 32], AppError> {
+    let decoded_vec = STANDARD.decode(key_b64)?;
+
+    if decoded_vec.len() != 32 {
+        return Err(AppError::InvalidLengthError);
+    }
+
+    let fixed_array: [u8; 32] = decoded_vec.try_into().unwrap();
+    Ok(fixed_array)
 }
