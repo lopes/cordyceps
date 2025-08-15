@@ -53,14 +53,14 @@ struct DecryptArgs {
     path: PathBuf,
 
     /// Path to the server private key--decryption mode only
-    #[arg(short = 'k', long, default_value = "server_ed25519_private.key")]
+    #[arg(short = 'k', long, default_value = "master_ed25519_private.key")]
     key: PathBuf,
 }
 
 #[derive(Parser, Debug)]
 #[command(about = "Generate new master key pair")]
 struct GenerateArgs {
-    #[arg(short = 'p', long, default_value = "server_ed25519_private.key")]
+    #[arg(short = 'p', long, default_value = "master_ed25519_private.key")]
     path: PathBuf,
 }
 
