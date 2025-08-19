@@ -63,6 +63,7 @@ Cordyceps uses subcommands to handle different modes of operation. To use the to
 Use the `encrypt` command to begin the encryption and exfiltration process.
 
 - `-p, --path <DIRECTORY>`: Specifies the starting directory for file processing. Default: current directory (`.`).
+- `-k, --key <PATH>`: File path to the master public key. Default: `master-public.key`.
 - `-n, --no-delete`: Prevents the original file from being deleted after successful encryption and transmission. Default: `false`, the original file is deleted.
 - `-s, --server <ADDRESS>`: The URL of the server to send encrypted files to (e.g., `https://your.exfil.server:8443`). Default: `http://localhost:8080`.
 - `-t, --target-folder <FOLDER_NAME>`: Designates a specific subfolder on the remote server for uploaded files (e.g., `my_laptop_data`). Default: empty, files are uploaded to the root of the specified server endpoint.
@@ -71,7 +72,7 @@ Use the `encrypt` command to begin the encryption and exfiltration process.
 Use the `decrypt` command to restore `.zombie` files using the provided private key.
 
 - `-p, --path <DIRECTORY>`: Specifies the starting directory for file processing. Default: current directory (`.`).
-- `-k, --key <PATH>`: Provides the file path to the server's private key (e.g., `master_ed25519_private.key`), which is essential for decryption. Default: `master_ed25519_private.key`.
+- `-k, --key <PATH>`: File path to the master private key. Default: `master-private.key`.
 
 ### Examples
 #### Encryption Example
