@@ -32,8 +32,8 @@ pub enum CryptoError {
     #[error("Key derivation function (KDF) error.")]
     KdfError,
 
-    #[error("Invalid private key length: expected 32 bytes.")]
-    InvalidPrivateKey,
+    #[error("Invalid key length: expected 32 bytes.")]
+    InvalidKey,
 
     #[error("Invalid zombie file format: {0}")]
     InvalidZombieFile(String),
