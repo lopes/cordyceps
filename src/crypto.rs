@@ -58,11 +58,12 @@ const ZOMBIE_HEADER_SIZE: usize = 4 + 1 + 32 + 48 + 12 + 12; // = 109 bytes
 ///
 /// # Arguments
 /// - `path`: The path of the file to be encrypted.
+/// - `public_key`: The master public key in x25519_dalek::PublicKey type.
 ///
 /// # Returns
 /// A `Result` containing the path to the newly created `.zombie` file on
 /// success, or a `CryptoError` if encryption fails.
-pub fn encrypt(path: &Path, master_pk_bytes: &[u8; 32]) -> Result<PathBuf, CryptoError> {
+pub fn encrypt(path: &Path, public_key: &PublicKey) -> Result<PathBuf, CryptoError> {
     info!("Starting encryption for file: {:?}", path);
 
     // 1. Read file content
@@ -107,8 +108,8 @@ pub fn encrypt(path: &Path, master_pk_bytes: &[u8; 32]) -> Result<PathBuf, Crypt
 
     // PublicKey expects an owned an owned array and master_pk_bytes is
     // a reference (&[u8; 32]), so it must be dereferenced with *
-    let public_key = PublicKey::from(*master_pk_bytes);
-    debug!("Master public key loaded");
+    // let public_key = PublicKey::from(*public_key);
+    // debug!("Public key loaded");
 
     let shared_secret = ephemeral_secret.diffie_hellman(&public_key);
     debug!("Derived shared secret using ECDH");
@@ -184,32 +185,23 @@ pub fn encrypt(path: &Path, master_pk_bytes: &[u8; 32]) -> Result<PathBuf, Crypt
 /// by aes_gcm.
 ///
 /// # Arguments:
-/// - `path`: A reference to the path of the `.zombie` file to be decrypted
-/// - `key`: A reference to the path of the master PRIVATE key file
+/// - `path`: A reference to the path of the `.zombie` file to be decrypted.
+/// - `private_key`: The private key to decrypt files in
+/// x25519_dalek::StaticSecret format.
 ///
 /// # Returns
 /// A `Result` containing the path to the newly created decrypted file on
 /// success, or a `CryptoError` if decryption fails.
-pub fn decrypt(path: &Path, key: &Path) -> Result<PathBuf, CryptoError> {
+pub fn decrypt(path: &Path, private_key: &StaticSecret) -> Result<PathBuf, CryptoError> {
     info!("Starting decryption for file: {:?}", path);
 
-    // 1. Read the master private key
-    let private_key_b64 = read_to_string(key)?;
-    let private_key_b64_trimmed = private_key_b64.trim();
-    let private_key_bytes = b64_decode(private_key_b64_trimmed)?;
-    let private_key = StaticSecret::from(
-        <[u8; 32]>::try_from(private_key_bytes.as_slice())
-            .map_err(|_| CryptoError::InvalidPrivateKey)?,
-    );
-    debug!("Loaded master private key from {:?}", key);
-
-    // 2. Read the .zombie file header
+    // 1. Read the .zombie file header
     let mut encrypted_file = File::open(path)?;
     let mut header_bytes = [0u8; ZOMBIE_HEADER_SIZE];
     encrypted_file.read_exact(&mut header_bytes)?;
     debug!("Read header bytes from {:?}", path);
 
-    // 3. Parse header
+    // 2. Parse header
     let mut cursor = io::Cursor::new(header_bytes);
 
     // Magic bytes
@@ -283,7 +275,7 @@ pub fn decrypt(path: &Path, key: &Path) -> Result<PathBuf, CryptoError> {
         file_content_ciphertext_with_tag.len()
     );
 
-    // 4. ECIES-like decapsulation for the file AES key (with AES-GCM)
+    // 3. ECIES-like decapsulation for the file AES key (with AES-GCM)
     let ephemeral_public = PublicKey::from(ephemeral_public_key);
     let shared_secret = private_key.diffie_hellman(&ephemeral_public);
     debug!("Derived shared secret with ECDH");
@@ -315,7 +307,7 @@ pub fn decrypt(path: &Path, key: &Path) -> Result<PathBuf, CryptoError> {
     let cipher_file_aes_gcm = Aes256Gcm::new(file_aes_key);
     debug!("File AES key decrypted");
 
-    // 5. Decrypt file content with AES-GCM
+    // 4. Decrypt file content with AES-GCM
     let plaintext = cipher_file_aes_gcm
         .decrypt(file_aes_nonce, file_content_ciphertext_with_tag.as_ref())
         .map_err(|e| {
@@ -333,12 +325,12 @@ pub fn decrypt(path: &Path, key: &Path) -> Result<PathBuf, CryptoError> {
         plaintext.len()
     );
 
-    // 6. Construct the decrypted file path
+    // 5. Construct the decrypted file path
     let mut decrypted_path = path.to_path_buf();
     decrypted_path.set_extension("");
     info!("Creating decrypted file: {:?}", decrypted_path);
 
-    // 7. Write decrypted content to the new file
+    // 6. Write decrypted content to the new file
     let mut output_file = File::create(&decrypted_path)?;
     output_file.write_all(&plaintext)?;
     info!("Decrypted content written to file");
@@ -352,27 +344,39 @@ pub fn decrypt(path: &Path, key: &Path) -> Result<PathBuf, CryptoError> {
 /// sharing.
 ///
 /// # Arguments
-/// - `private_key_path`: The path to save the generated master private key.
+/// - `path`: The path to save the generated key pair named
+/// `master-private.key` and `master-public.key`.
 ///
 /// # Returns
-/// A `Result` containing the generated master public key bytes (`[u8; 32]`)
-/// on success or a `CryptoError` if key generation or file saving fails.
-pub fn generate(private_key_path: &Path) -> Result<(), CryptoError> {
+/// A `Result` with a unit type on success or a `CryptoError` if key generation
+/// or file saving fails.
+pub fn generate(path: &Path) -> Result<(), CryptoError> {
+    if !path.exists() || !path.is_dir() {
+        return Err(CryptoError::Io(io::Error::new(
+            io::ErrorKind::NotFound,
+            format!("Path not found or not a directory: {:?}", path),
+        )));
+    }
+
     info!("Generating new master key pair");
 
     let private_key = StaticSecret::random_from_rng(OsRng);
     let private_key_bytes = private_key.to_bytes();
+    let private_key_b64 = b64_encode(&private_key_bytes);
+    let private_key_path = path.join("master-private.key");
 
     let public_key: PublicKey = (&private_key).into();
     let public_key_bytes = public_key.to_bytes();
-
     let public_key_b64 = b64_encode(&public_key_bytes);
-    let private_key_b64 = b64_encode(&private_key_bytes);
+    let public_key_path = path.join("master-public.key");
 
-    let mut file = File::create(private_key_path)?;
+    let mut file = File::create(&private_key_path)?;
     file.write_all(private_key_b64.as_ref())?;
     info!("Master private key saved to: {:?}", private_key_path);
-    println!("Generated public key (base 64): {:?}", public_key_b64);
+
+    let mut file = File::create(&public_key_path)?;
+    file.write_all(public_key_b64.as_ref())?;
+    info!("Master public key saved to: {:?}", public_key_path);
 
     // Making sure the encoded keys are valid
     if let Ok(prikey) = b64_decode(&private_key_b64) {
@@ -424,4 +428,43 @@ pub fn b64_decode(key_b64: &str) -> Result<[u8; 32], CryptoError> {
 
     let fixed_array: [u8; 32] = decoded_vec.try_into().unwrap();
     Ok(fixed_array)
+}
+
+/// Loads a Base64-encoded private key from a file and returns a
+/// `StaticSecret`.
+///
+/// Reads the file at the given path, decodes its Base64 contents, and converts
+/// the result into a 32-byte `StaticSecret` used for cryptographic operations.
+///
+/// # Arguments
+/// - `path`: Path to the Base64-encoded private key file.
+///
+/// # Returns
+/// A `Result` containing the `StaticSecret` on success, or a `CryptoError` if
+/// the file cannot be read, decoding fails, or the key is not 32 bytes long.
+pub fn load_private_key(key: &Path) -> Result<StaticSecret, CryptoError> {
+    let key_b64 = read_to_string(key)?;
+    let key_bytes = b64_decode(key_b64.trim())?;
+    let key_array =
+        <[u8; 32]>::try_from(key_bytes.as_slice()).map_err(|_| CryptoError::InvalidKey)?;
+    Ok(StaticSecret::from(key_array))
+}
+
+/// Loads a Base64-encoded public key from a file and returns a `PublicKey`.
+///
+/// Reads the file at the given path, decodes its Base64 contents, and converts
+/// the result into a 32-byte `PublicKey` used for cryptographic operations.
+///
+/// # Arguments
+/// - `path`: Path to the Base64-encoded public key file.
+///
+/// # Returns
+/// A `Result` containing the `PublicKey` on success, or a `CryptoError` if
+/// the file cannot be read, decoding fails, or the key is not 32 bytes long.
+pub fn load_public_key(key: &Path) -> Result<PublicKey, CryptoError> {
+    let key_b64 = read_to_string(key)?;
+    let key_bytes = b64_decode(key_b64.trim())?;
+    let key_array =
+        <[u8; 32]>::try_from(key_bytes.as_slice()).map_err(|_| CryptoError::InvalidKey)?;
+    Ok(PublicKey::from(key_array))
 }
