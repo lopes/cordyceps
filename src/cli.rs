@@ -32,6 +32,10 @@ struct EncryptArgs {
     #[arg(short = 'p', long, default_value = ".")]
     path: PathBuf,
 
+    /// Master public key path
+    #[arg(short = 'k', long, default_value = "master-public.key")]
+    key: PathBuf,
+
     /// Do not delete original files after encryption--encryption mode only
     #[arg(short = 'n', long)]
     no_delete: bool,
@@ -52,15 +56,16 @@ struct DecryptArgs {
     #[arg(short = 'p', long, default_value = ".")]
     path: PathBuf,
 
-    /// Path to the server private key--decryption mode only
-    #[arg(short = 'k', long, default_value = "master_ed25519_private.key")]
+    /// Path to the master private key
+    #[arg(short = 'k', long, default_value = "master-private.key")]
     key: PathBuf,
 }
 
 #[derive(Parser, Debug)]
 #[command(about = "Generate new master key pair")]
 struct GenerateArgs {
-    #[arg(short = 'p', long, default_value = "master_ed25519_private.key")]
+    /// Path to store the keypair
+    #[arg(short = 'p', long, default_value = ".")]
     path: PathBuf,
 }
 
@@ -82,6 +87,7 @@ pub fn run() -> Result<(), AppError> {
     match args {
         Cli::Encrypt(args) => sporulate(
             &args.path,
+            &args.key,
             &args.no_delete,
             &args.server,
             &args.target_folder,
@@ -107,6 +113,8 @@ mod tests {
             "encrypt",
             "-p",
             "/tmp",
+            "-k",
+            "/var/master-public.key",
             "-n",
             "-s",
             "http://example.com",
@@ -116,6 +124,7 @@ mod tests {
 
         if let Cli::Encrypt(args) = args {
             assert_eq!(args.path.to_str().unwrap(), "/tmp");
+            assert_eq!(args.key.to_str().unwrap(), "/var/master-public.key");
             assert!(args.no_delete);
             assert_eq!(args.server, "http://example.com");
             assert_eq!(args.target_folder.unwrap(), "backup");
