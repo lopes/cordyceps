@@ -32,8 +32,8 @@ struct EncryptArgs {
     #[arg(short = 'p', long, default_value = ".")]
     path: PathBuf,
 
-    /// Master public key path
-    #[arg(short = 'k', long, default_value = "master-public.key")]
+    /// Main public key path
+    #[arg(short = 'k', long, default_value = "main-public.key")]
     key: PathBuf,
 
     /// Do not delete original files after encryption
@@ -56,8 +56,8 @@ struct DecryptArgs {
     #[arg(short = 'p', long, default_value = ".")]
     path: PathBuf,
 
-    /// Path to the master private key
-    #[arg(short = 'k', long, default_value = "master-private.key")]
+    /// Path to the main private key
+    #[arg(short = 'k', long, default_value = "main-private.key")]
     key: PathBuf,
 
     /// Do not delete .zombie files after decryption
@@ -66,7 +66,7 @@ struct DecryptArgs {
 }
 
 #[derive(Parser, Debug)]
-#[command(about = "Generate new master key pair")]
+#[command(about = "Generate new main key pair")]
 struct GenerateArgs {
     /// Path to store the keypair
     #[arg(short = 'p', long, default_value = ".")]
@@ -118,7 +118,7 @@ mod tests {
             "-p",
             "/tmp",
             "-k",
-            "/var/master-public.key",
+            "/var/main-public.key",
             "-n",
             "-s",
             "http://example.com",
@@ -128,7 +128,7 @@ mod tests {
 
         if let Cli::Encrypt(args) = args {
             assert_eq!(args.path.to_str().unwrap(), "/tmp");
-            assert_eq!(args.key.to_str().unwrap(), "/var/master-public.key");
+            assert_eq!(args.key.to_str().unwrap(), "/var/main-public.key");
             assert!(args.no_delete);
             assert_eq!(args.server, "http://example.com");
             assert_eq!(args.target_folder.unwrap(), "backup");

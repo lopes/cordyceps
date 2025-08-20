@@ -61,7 +61,7 @@ const ZOMBIE_HEADER_SIZE: usize = 109;
 ///
 /// # Arguments
 /// - `path`: The path of the file to be encrypted.
-/// - `public_key`: The master public key in x25519_dalek::PublicKey type.
+/// - `public_key`: The main public key in x25519_dalek::PublicKey type.
 ///
 /// # Returns
 /// A `Result` containing the path to the newly created `.zombie` file on
@@ -108,11 +108,6 @@ pub fn encrypt(path: &Path, public_key: &PublicKey) -> Result<PathBuf, CryptoErr
     let ephemeral_secret = EphemeralSecret::random_from_rng(OsRng);
     let ephemeral_public = PublicKey::from(&ephemeral_secret);
     debug!("Generated ephemeral Curve25519 key pair");
-
-    // PublicKey expects an owned an owned array and master_pk_bytes is
-    // a reference (&[u8; 32]), so it must be dereferenced with *
-    // let public_key = PublicKey::from(*public_key);
-    // debug!("Public key loaded");
 
     let shared_secret = ephemeral_secret.diffie_hellman(&public_key);
     debug!("Derived shared secret using ECDH");
@@ -176,7 +171,7 @@ pub fn encrypt(path: &Path, public_key: &PublicKey) -> Result<PathBuf, CryptoErr
 }
 
 /// Decrypts a `.zombie` file.
-/// Requires the corresponding private key to the master public key used
+/// Requires the corresponding private key to the main public key used
 /// during encryption.
 ///
 /// The function reads the header from the `.zombie` file to extract:
@@ -341,14 +336,14 @@ pub fn decrypt(path: &Path, private_key: &StaticSecret) -> Result<PathBuf, Crypt
     Ok(decrypted_path)
 }
 
-/// Generates a new Curve25519 key pair (public and private).
+/// Generates a new 32 bytes (256 bits) Curve25519 key pair.
 ///
 /// Both private and public key are encoded in base 64 for better storing and
 /// sharing.
 ///
 /// # Arguments
 /// - `path`: The path to save the generated key pair named
-/// `master-private.key` and `master-public.key`.
+/// `main-private.key` and `main-public.key`.
 ///
 /// # Returns
 /// A `Result` with a unit type on success or a `CryptoError` if key generation
@@ -361,25 +356,25 @@ pub fn generate(path: &Path) -> Result<(), CryptoError> {
         )));
     }
 
-    info!("Generating new master key pair");
+    info!("Generating new main key pair");
 
     let private_key = StaticSecret::random_from_rng(OsRng);
     let private_key_bytes = private_key.to_bytes();
     let private_key_b64 = b64_encode(&private_key_bytes);
-    let private_key_path = path.join("master-private.key");
+    let private_key_path = path.join("main-private.key");
 
     let public_key: PublicKey = (&private_key).into();
     let public_key_bytes = public_key.to_bytes();
     let public_key_b64 = b64_encode(&public_key_bytes);
-    let public_key_path = path.join("master-public.key");
+    let public_key_path = path.join("main-public.key");
 
     let mut file = File::create(&private_key_path)?;
     file.write_all(private_key_b64.as_ref())?;
-    info!("Master private key saved to: {:?}", private_key_path);
+    info!("Main private key saved to: {:?}", private_key_path);
 
     let mut file = File::create(&public_key_path)?;
     file.write_all(public_key_b64.as_ref())?;
-    info!("Master public key saved to: {:?}", public_key_path);
+    info!("Main public key saved to: {:?}", public_key_path);
 
     // Making sure the encoded keys are valid
     if let Ok(prikey) = b64_decode(&private_key_b64) {
