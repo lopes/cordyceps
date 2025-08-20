@@ -32,14 +32,17 @@ const MAGIC_BYTES: &[u8; 4] = b"CORD";
 /// .zombie file format version
 const FILE_FORMAT_VERSION: u8 = 0x01;
 
-/// .zombie header size in bytes:
+/// .zombie header size in bytes--the ciphertext (+ its GCM tag) is considered the payload, after the header:
+/// ```
 /// - Magic bytes.................: 04
 /// - Version.....................: 01
 /// - Ephemeral PubKey............: 32
 /// - Encrypted AES key + tag.....: 48 (32 + 16)
 /// - Key encapsulation nonce.....: 12
 /// - File content AES-GCM nonce..: 12
-const ZOMBIE_HEADER_SIZE: usize = 4 + 1 + 32 + 48 + 12 + 12; // = 109 bytes
+/// - TOTAL.......................: 109 bytes
+/// ```
+const ZOMBIE_HEADER_SIZE: usize = 109;
 
 /// Encrypts a file using AES-GCM for content and ECIES-like key encapsulation
 /// for the AES key using Curve25519--x25519-dalek.
@@ -338,7 +341,7 @@ pub fn decrypt(path: &Path, private_key: &StaticSecret) -> Result<PathBuf, Crypt
     Ok(decrypted_path)
 }
 
-/// Generates a new master Curve25519 key pair (public and private).
+/// Generates a new Curve25519 key pair (public and private).
 ///
 /// Both private and public key are encoded in base 64 for better storing and
 /// sharing.

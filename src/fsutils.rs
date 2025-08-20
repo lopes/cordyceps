@@ -57,7 +57,7 @@ const EXCLUDED_FILES: &'static [&'static str] = &[
 /// - `key`: Pathbuf to the private key to decrypt files--see README
 /// - `no_delete`: Boolean flag: false means the original file is deleted
 /// - `server`: String representing the target server
-/// - `target_folder`: Option<String> for a specific folder on the server
+/// - `target_folder`: `Option<String>` for a specific folder on the server
 ///
 /// # Logic
 /// Uses `HashSet` for efficient lookups of excluded names.
@@ -171,6 +171,7 @@ pub fn sporulate(
 /// # Arguments
 /// - `path`: Starting directory as a `PathBuf`
 /// - `key`: Pathbuf to the private key to decrypt files--see README
+/// - `no_delete`: Boolean flag: false means the .zombie file is deleted
 ///
 /// # Logic
 /// Iterates through the file system, and for each valid file:

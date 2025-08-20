@@ -11,7 +11,7 @@ use std::path::PathBuf;
 use crate::crypto::generate;
 use crate::fsutils::{disinfect, sporulate};
 
-/// Command-line arguments
+/// Cordyceps' commands
 #[derive(Parser, Debug)]
 #[command(
     author = env!("CARGO_PKG_AUTHORS"),
