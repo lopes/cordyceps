@@ -105,11 +105,11 @@ pub fn encrypt(path: &Path, public_key: &PublicKey) -> Result<PathBuf, CryptoErr
     );
 
     // 4. ECIES-like key encapsulation for the AES-GCM key
-    let ephemeral_secret = EphemeralSecret::random_from_rng(OsRng);
-    let ephemeral_public = PublicKey::from(&ephemeral_secret);
+    let ephemeral_private = EphemeralSecret::random_from_rng(OsRng);
+    let ephemeral_public = PublicKey::from(&ephemeral_private);
     debug!("Generated ephemeral Curve25519 key pair");
 
-    let shared_secret = ephemeral_secret.diffie_hellman(&public_key);
+    let shared_secret = ephemeral_private.diffie_hellman(&public_key);
     debug!("Derived shared secret using ECDH");
 
     // Use HKDF to derive an AES-GCM key for encrypting the file_aes_key
@@ -141,16 +141,15 @@ pub fn encrypt(path: &Path, public_key: &PublicKey) -> Result<PathBuf, CryptoErr
 
     // 5. .zombie file creation and opening for writing
     let mut zombie_path = path.to_path_buf();
-    let original_file_name = zombie_path.file_name().ok_or_else(|| {
-        CryptoError::Io(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "Invalid file name for encryption",
-        ))
-    })?;
-    let mut new_file_name = original_file_name.to_os_string();
-    new_file_name.push(".");
-    new_file_name.push(EXTENSION);
-    zombie_path.set_file_name(new_file_name);
+    zombie_path.set_extension(format!(
+        "{}.{}",
+        zombie_path
+            .extension()
+            .unwrap_or_default()
+            .to_str()
+            .unwrap_or_default(),
+        EXTENSION
+    ));
     info!("Creating encrypted file: {:?}", zombie_path);
     let mut output_file = File::create(&zombie_path)?;
 
