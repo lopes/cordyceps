@@ -17,7 +17,7 @@ Cordyceps was developed as a hands-on learning project to build practical skills
 
 It provides a practical platform for studying:
 - **Ransomware Behavior Simulation**: Demonstrates the core logic of ransomware operations, from payload execution to encryption and optional file removal.
-- **Key Management and Hybrid Cryptography**: Uses AES-GCM key for content encryption and ECIES (based on Ed25519) for secure key exchange with Perfect Forward Secrecy.
+- **Key Management and Hybrid Cryptography**: Uses AES-GCM key for content encryption and ECIES (based on X25519) for secure key exchange with Perfect Forward Secrecy.
 - **Data Exfiltration**: Recursively encrypts files from a specified directory and securely transmits them to a remote server over HTTP/HTTPS.
 - **Data Recovery**: Decrypts `.zombie` files back to their original form using the appropriate private key.
 - **Security Tool Evaluation**: Enables testing of EDRs and behavioral detection systems by providing realistic ransomware-like behavior in a safe, reproducible manner.
@@ -59,6 +59,11 @@ Cordyceps operates via command-line arguments, allowing flexible control over it
 
 ### Command Line Options
 Cordyceps uses subcommands to handle different modes of operation. To use the tool, you must specify either the `encrypt` or `decrypt` command, each with its own set of options. If in doubt, run `cordyceps help`.
+
+#### `generate` Command
+Use the `generate` command to create a new Curve25519 key pair to start encrypting (public key) and decrypting (private key) files.
+
+- `-p, --path <DIRECTORY>`: Specified the path to store the key pair. Default: current directory (`.`). The keys will be saved as `main-private.key` and `main-public.key`.
 
 #### `encrypt` Command
 Use the `encrypt` command to begin the encryption and exfiltration process.

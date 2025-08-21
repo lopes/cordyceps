@@ -8,8 +8,7 @@ use clap::Parser;
 use log::{debug, info};
 use std::path::PathBuf;
 
-use crate::crypto::generate;
-use crate::fsutils::{disinfect, sporulate};
+use crate::fsutils::{disinfect, germinate, sporulate};
 
 /// Cordyceps' commands
 #[derive(Parser, Debug)]
@@ -97,11 +96,7 @@ pub fn run() -> Result<(), AppError> {
             &args.target_folder,
         ),
         Cli::Decrypt(args) => disinfect(&args.path, &args.key, &args.no_delete),
-        Cli::Generate(args) => {
-            // must convert CryptoError to AppError
-            generate(&args.path)?;
-            Ok(())
-        }
+        Cli::Generate(args) => germinate(&args.path),
     }
 }
 

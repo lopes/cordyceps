@@ -334,50 +334,16 @@ pub fn decrypt(path: &Path, private_key: &StaticSecret) -> Result<PathBuf, Crypt
 /// Both private and public key are encoded in base 64 for better storing and
 /// sharing.
 ///
-/// # Arguments
-/// - `path`: The path to save the generated key pair named
-///   `main-private.key` and `main-public.key`.
-///
 /// # Returns
-/// A `Result` with a unit type on success or a `CryptoError` if key generation
-/// or file saving fails.
-pub fn generate(path: &Path) -> Result<(), CryptoError> {
-    if !path.exists() || !path.is_dir() {
-        return Err(CryptoError::Io(io::Error::new(
-            io::ErrorKind::NotFound,
-            format!("Path not found or not a directory: {:?}", path),
-        )));
-    }
-
+/// A `Result` with a `[u8; 32]` tuple with private and public keys on success
+/// or a `CryptoError` if key generation or file saving fails.
+pub fn generate_keypair() -> Result<([u8; 32], [u8; 32]), CryptoError> {
     info!("Generating new main key pair");
 
     let private_key = StaticSecret::random_from_rng(OsRng);
-    let private_key_bytes = private_key.to_bytes();
-    let private_key_b64 = b64_encode(&private_key_bytes);
-    let private_key_path = path.join("main-private.key");
-
     let public_key: PublicKey = (&private_key).into();
-    let public_key_bytes = public_key.to_bytes();
-    let public_key_b64 = b64_encode(&public_key_bytes);
-    let public_key_path = path.join("main-public.key");
 
-    let mut file = File::create(&private_key_path)?;
-    file.write_all(private_key_b64.as_ref())?;
-    info!("Main private key saved to: {:?}", private_key_path);
-
-    let mut file = File::create(&public_key_path)?;
-    file.write_all(public_key_b64.as_ref())?;
-    info!("Main public key saved to: {:?}", public_key_path);
-
-    // Making sure the encoded keys are valid
-    if let Ok(prikey) = b64_decode(&private_key_b64) {
-        assert_eq!(private_key_bytes, prikey);
-    }
-    if let Ok(pubkey) = b64_decode(&public_key_b64) {
-        assert_eq!(public_key_bytes, pubkey);
-    }
-
-    Ok(())
+    Ok((private_key.to_bytes(), public_key.to_bytes()))
 }
 
 /// Encodes a byte slice into a Base64 string.
