@@ -20,7 +20,7 @@ use crate::{
 // Slices are used to avoid informing the number of elements of an array
 // Avoiding Vec for better performance, no dynamic allocation--heap
 /// Permanent, read-only lists that contain permanent, read-only string references
-const EXCLUDED_DIRS: &'static [&'static str] = &[
+const EXCLUDED_DIRS: &[&str] = &[
     ".git",
     ".svn",
     "node_modules",
@@ -32,7 +32,7 @@ const EXCLUDED_DIRS: &'static [&'static str] = &[
     ".Trashes",
     ".fseventsd",
 ];
-const EXCLUDED_FILES: &'static [&'static str] = &[
+const EXCLUDED_FILES: &[&str] = &[
     ".zombie",
     ".DS_Store",
     ".AppleDouble",
@@ -99,7 +99,7 @@ pub fn sporulate(
     // if the item's name should be excluded--see the exclusion lists.
     // Finally, it avoids processing errors, considering only valid entries.
     // The closure returns true to process the entry of false to skip it.
-    let walker = WalkDir::new(&path)
+    let walker = WalkDir::new(path)
         .into_iter()
         .filter_entry(|entry| {
             let file_name = entry.file_name();
@@ -122,8 +122,8 @@ pub fn sporulate(
                     .and_then(|ext| ext.to_str())
                     .map(|ext| format!(".{}", ext));
 
-                if file_name_str.map_or(false, |name| excluded_files_set.contains(name))
-                    || extension_str.map_or(false, |ext| excluded_files_set.contains(ext.as_str()))
+                if file_name_str.is_some_and(|name| excluded_files_set.contains(name))
+                    || extension_str.is_some_and(|ext| excluded_files_set.contains(ext.as_str()))
                 {
                     debug!("Skipping file {}", file_path.display());
                     return false;
@@ -194,12 +194,12 @@ pub fn disinfect(path: &Path, key: &Path, no_delete: &bool) -> Result<(), AppErr
         )));
     }
 
-    let private_key = load_private_key(&key)?;
+    let private_key = load_private_key(key)?;
     debug!("Loaded main private key from {:?}", key);
 
     // Creates and sets the directory traversal lazy iterator.
     // Only valid files with the `.zombie` extension are processed.
-    let walker = WalkDir::new(&path)
+    let walker = WalkDir::new(path)
         .into_iter()
         .filter_map(Result::ok)
         .filter(|entry| {

@@ -14,8 +14,6 @@
 
 use std::io;
 
-use base64;
-use rand_core;
 use thiserror::Error;
 
 #[derive(Error, Debug)]

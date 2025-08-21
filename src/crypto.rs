@@ -24,7 +24,7 @@ use x25519_dalek::{EphemeralSecret, PublicKey, StaticSecret};
 use crate::error::CryptoError;
 
 /// Encrypted files extension.
-pub const EXTENSION: &'static str = "zombie";
+pub const EXTENSION: &str = "zombie";
 
 /// Magic bytes to identify Cordyceps encrypted files
 const MAGIC_BYTES: &[u8; 4] = b"CORD";
@@ -56,8 +56,8 @@ const ZOMBIE_HEADER_SIZE: usize = 109;
 ///   ECDH
 /// - AES-GCM nonce for key encapsulation
 /// - AES-GCM nonce for file content encryption
-/// Note: AES-GCM tags are concatenated with their respective ciphertexts
-/// by aes_gcm.
+///   Note: AES-GCM tags are concatenated with their respective ciphertexts
+///   by aes_gcm.
 ///
 /// # Arguments
 /// - `path`: The path of the file to be encrypted.
@@ -109,7 +109,7 @@ pub fn encrypt(path: &Path, public_key: &PublicKey) -> Result<PathBuf, CryptoErr
     let ephemeral_public = PublicKey::from(&ephemeral_private);
     debug!("Generated ephemeral Curve25519 key pair");
 
-    let shared_secret = ephemeral_private.diffie_hellman(&public_key);
+    let shared_secret = ephemeral_private.diffie_hellman(public_key);
     debug!("Derived shared secret using ECDH");
 
     // Use HKDF to derive an AES-GCM key for encrypting the file_aes_key
@@ -178,13 +178,13 @@ pub fn encrypt(path: &Path, public_key: &PublicKey) -> Result<PathBuf, CryptoErr
 /// - Encrypted AES key + tag (file content)
 /// - AES-GCM nonce for key encapsulation
 /// - AES-GCM nonce for file content encryption
-/// Note: AES-GCM tags are concatenated with their respective ciphertexts
-/// by aes_gcm.
+///   Note: AES-GCM tags are concatenated with their respective ciphertexts
+///   by aes_gcm.
 ///
 /// # Arguments:
 /// - `path`: A reference to the path of the `.zombie` file to be decrypted.
 /// - `private_key`: The private key to decrypt files in
-/// x25519_dalek::StaticSecret format.
+///   x25519_dalek::StaticSecret format.
 ///
 /// # Returns
 /// A `Result` containing the path to the newly created decrypted file on
@@ -342,7 +342,7 @@ pub fn decrypt(path: &Path, private_key: &StaticSecret) -> Result<PathBuf, Crypt
 ///
 /// # Arguments
 /// - `path`: The path to save the generated key pair named
-/// `main-private.key` and `main-public.key`.
+///   `main-private.key` and `main-public.key`.
 ///
 /// # Returns
 /// A `Result` with a unit type on success or a `CryptoError` if key generation
