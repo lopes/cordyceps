@@ -17,7 +17,7 @@ Cordyceps was developed as a hands-on learning project to build practical skills
 
 It provides a practical platform for studying:
 - **Ransomware Behavior Simulation**: Demonstrates the core logic of ransomware operations, from payload execution to encryption and optional file removal.
-- **Key Management and Hybrid Cryptography**: Uses AES-GCM key for content encryption and ECIES (based on X25519) for secure key exchange with Perfect Forward Secrecy.
+- **Key Management and Hybrid Cryptography**: Uses AES-GCM key for content encryption and ECIES (based on Curve25519) for secure key exchange with Perfect Forward Secrecy.
 - **Data Exfiltration**: Recursively encrypts files from a specified directory and securely transmits them to a remote server over HTTP/HTTPS.
 - **Data Recovery**: Decrypts `.zombie` files back to their original form using the appropriate private key.
 - **Security Tool Evaluation**: Enables testing of EDRs and behavioral detection systems by providing realistic ransomware-like behavior in a safe, reproducible manner.
@@ -28,7 +28,7 @@ It provides a practical platform for studying:
 
 ## Key Features
 - 🔄 **Dual Operation Modes**: Supports both `encrypt` and `decrypt` commands for flexible operation.
-- 🔒 **Strong Cryptography**: Uses **AES-GCM** for file encryption and **ECIES (Ed25519)** for secure key exchange with Perfect Forward Secrecy.
+- 🔒 **Strong Cryptography**: Uses **AES-GCM** for file encryption and **ECIES (Curve25519)** for secure key exchange with Perfect Forward Secrecy.
 - 🧟 **`.zombie` Format**: Each encrypted file is stored in a custom `.zombie` format containing:
   - Metadata
   - Ephemeral public key
@@ -98,8 +98,8 @@ cordyceps decrypt -p /path/to/zombie_files -k /path/to/your/main-private.key
 
 
 ## Key Management
-- **Main Public Key**: For **encryption** operations, the main Ed25519 public key must be provided via the `--key` CLI option. This key is used to establish the shared secret for encrypting the AES key.
-- **Main Private Key**: For **decryption** operations, the corresponding Ed25519 private key must be explicitly provided by the user via the `--key` CLI option. **It is paramount to keep this private key highly secure and never distribute it with the client application.**
+- **Main Public Key**: For **encryption** operations, the main Curve25519 public key must be provided via the `--key` CLI option. This key is used to establish the shared secret for encrypting the AES key.
+- **Main Private Key**: For **decryption** operations, the corresponding Curve25519 private key must be explicitly provided by the user via the `--key` CLI option. **It is paramount to keep this private key highly secure and never distribute it with the client application.**
 
 Cordyceps is shipped with the `generate` command that creates a new keypair for this purpose.
 
