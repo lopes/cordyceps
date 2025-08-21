@@ -7,7 +7,7 @@
 //!
 //! It provides robust capabilities to:
 //! - Recursively encrypt files using **AES-GCM 256-bit** and
-//!   **ECIES (ED25519)**, then securely transmit them to a server.
+//!   **ECIES (ED25519)**, then exfiltrate them.
 //! - Decrypt previously encrypted `.zombie` files back to their original
 //!   state.
 //!

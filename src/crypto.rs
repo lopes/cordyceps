@@ -32,32 +32,34 @@ const MAGIC_BYTES: &[u8; 4] = b"CORD";
 /// .zombie file format version
 const FILE_FORMAT_VERSION: u8 = 0x01;
 
-/// .zombie header size in bytes--the ciphertext (+ its GCM tag) is considered the payload, after the header:
+/// .zombie header size in bytes--the ciphertext (+ its GCM tag) is considered
+/// the payload, after the header:
 /// ```
 /// - Magic bytes.................: 04
 /// - Version.....................: 01
-/// - Ephemeral PubKey............: 32
-/// - Encrypted AES key + tag.....: 48 (32 + 16)
+/// - Ephemeral public key........: 32
+/// - Encrypted AES key + GCM tag.: 48 (32 + 16)
 /// - Key encapsulation nonce.....: 12
-/// - File content AES-GCM nonce..: 12
+/// - File content AES nonce......: 12
 /// - TOTAL.......................: 109 bytes
 /// ```
 const ZOMBIE_HEADER_SIZE: usize = 109;
 
-/// Encrypts a file using AES-GCM for content and ECIES-like key encapsulation
-/// for the AES key using Curve25519--x25519-dalek.
+/// Encrypts a file using AES-GCM wit 256-bit key for content and ECIES-like key
+/// encapsulation for the AES key using Curve25519--x25519-dalek.
 ///
 /// The encrypted file will have a `.zombie` extension and its header will
 /// include:
 /// - Magic bytes--`CORD`
 /// - File format version
 /// - Ephemeral public key--generated during encryption
-/// - Encrypted AES key + tag--encrypted with AES-GCM with a derived key from
-///   ECDH
-/// - AES-GCM nonce for key encapsulation
-/// - AES-GCM nonce for file content encryption
-///   Note: AES-GCM tags are concatenated with their respective ciphertexts
-///   by aes_gcm.
+/// - Encrypted AES key + GCM tag--encrypted with AES-GCM with a derived key
+///   from ECDH
+/// - AES nonce for key encapsulation
+/// - AES nonce for file content encryption
+///
+/// Note: GCM tags are concatenated with their respective ciphertexts
+/// by `aes_gcm`.
 ///
 /// # Arguments
 /// - `path`: The path of the file to be encrypted.
@@ -75,7 +77,7 @@ pub fn encrypt(path: &Path, public_key: &PublicKey) -> Result<PathBuf, CryptoErr
     file.read_to_end(&mut plaintext)?; // TODO: read file by chunks
     debug!("Read {} bytes from {:?}", plaintext.len(), path);
 
-    // 2. Generate random AES-GCM key and nonce for file content encryption
+    // 2. Generate random AES key and nonce for file content encryption
     let mut file_aes_key_bytes = [0u8; 32]; // 32-byte long AES key
     OsRng.try_fill_bytes(&mut file_aes_key_bytes)?;
     let file_aes_key = aes_gcm::Key::<Aes256Gcm>::from_slice(&file_aes_key_bytes);
@@ -84,7 +86,7 @@ pub fn encrypt(path: &Path, public_key: &PublicKey) -> Result<PathBuf, CryptoErr
     let mut file_aes_nonce_bytes = [0u8; 12]; // 12-byte long nonce
     OsRng.try_fill_bytes(&mut file_aes_nonce_bytes)?;
     let file_aes_nonce = Nonce::<Aes256Gcm>::from_slice(&file_aes_nonce_bytes);
-    debug!("Generated AES-GCM key and nonce for file content");
+    debug!("Generated AES key and nonce for file content");
 
     // 3. Encrypt file content with AES-GCM
     let ciphertext_with_tag = cipher_file_aes_gcm
@@ -94,17 +96,14 @@ pub fn encrypt(path: &Path, public_key: &PublicKey) -> Result<PathBuf, CryptoErr
         // std::error::Error needed by thiserror in error.rs.
         // error handling in Rust is sometimes VERY frustrating.
         .map_err(|e| {
-            CryptoError::SymmetricEncryptError(format!(
-                "AES-GCM file content encryption failed: {:?}",
-                e
-            ))
+            CryptoError::SymmetricEncryptError(format!("File content encryption failed: {:?}", e))
         })?;
     debug!(
         "File content encrypted. Combined ciphertext+tag size: {}",
         ciphertext_with_tag.len()
     );
 
-    // 4. ECIES-like key encapsulation for the AES-GCM key
+    // 4. ECIES-like key encapsulation for the AES key
     let ephemeral_private = EphemeralSecret::random_from_rng(OsRng);
     let ephemeral_public = PublicKey::from(&ephemeral_private);
     debug!("Generated ephemeral Curve25519 key pair");
@@ -112,7 +111,7 @@ pub fn encrypt(path: &Path, public_key: &PublicKey) -> Result<PathBuf, CryptoErr
     let shared_secret = ephemeral_private.diffie_hellman(public_key);
     debug!("Derived shared secret using ECDH");
 
-    // Use HKDF to derive an AES-GCM key for encrypting the file_aes_key
+    // Use HKDF to derive an AES key for encrypting the file_aes_key
     let hkdf = Hkdf::<sha2::Sha256>::new(None, shared_secret.as_bytes());
     let mut key_enc_aes_key_derived_bytes = [0u8; 32];
     hkdf.expand(
@@ -126,18 +125,15 @@ pub fn encrypt(path: &Path, public_key: &PublicKey) -> Result<PathBuf, CryptoErr
     let mut key_enc_aes_nonce_bytes = [0u8; 12];
     OsRng.fill_bytes(&mut key_enc_aes_nonce_bytes);
     let key_enc_aes_nonce = Nonce::<Aes256Gcm>::from_slice(&key_enc_aes_nonce_bytes);
-    debug!("Derived AES-GCM key and nonce for key encapsulation");
+    debug!("Derived AES key and nonce for key encapsulation");
 
-    // Encrypt the file_aes_key_bytes with the derived AES-GCM key
+    // Encrypt the file_aes_key_bytes with the derived AES key
     let encrypted_file_aes_key_with_tag = cipher_key_enc_aes_gcm
         .encrypt(key_enc_aes_nonce, file_aes_key_bytes.as_ref())
         .map_err(|e| {
-            CryptoError::SymmetricEncryptError(format!(
-                "AES-GCM encryption of file AES key failed: {:?}",
-                e
-            ))
+            CryptoError::SymmetricEncryptError(format!("AES key encryption failed: {:?}", e))
         })?;
-    debug!("File AES key encrypted with AES-GCM");
+    debug!("AES key encrypted");
 
     // 5. .zombie file creation and opening for writing
     let mut zombie_path = path.to_path_buf();
@@ -175,16 +171,17 @@ pub fn encrypt(path: &Path, public_key: &PublicKey) -> Result<PathBuf, CryptoErr
 ///
 /// The function reads the header from the `.zombie` file to extract:
 /// - Ephemeral public key
-/// - Encrypted AES key + tag (file content)
-/// - AES-GCM nonce for key encapsulation
-/// - AES-GCM nonce for file content encryption
-///   Note: AES-GCM tags are concatenated with their respective ciphertexts
-///   by aes_gcm.
+/// - Encrypted AES key + GCM tag (file content)
+/// - AES nonce for key encapsulation
+/// - AES nonce for file content encryption
+///
+///   Note: GCM tags are concatenated with their respective ciphertexts
+///   by `aes_gcm`.
 ///
 /// # Arguments:
 /// - `path`: A reference to the path of the `.zombie` file to be decrypted.
 /// - `private_key`: The private key to decrypt files in
-///   x25519_dalek::StaticSecret format.
+///   `x25519_dalek::StaticSecret` format.
 ///
 /// # Returns
 /// A `Result` containing the path to the newly created decrypted file on
@@ -236,7 +233,7 @@ pub fn decrypt(path: &Path, private_key: &StaticSecret) -> Result<PathBuf, Crypt
         CryptoError::InvalidZombieFile("Failed to read ephemeral public key".to_string())
     })?;
 
-    // Encrypted file AES key (+ 16 byte tag)
+    // Encrypted AES key (+ 16 byte GCM tag)
     let mut encrypted_file_aes_key_with_tag = [0u8; 48];
     cursor
         .read_exact(&mut encrypted_file_aes_key_with_tag)
@@ -244,27 +241,27 @@ pub fn decrypt(path: &Path, private_key: &StaticSecret) -> Result<PathBuf, Crypt
             CryptoError::InvalidZombieFile("Failed to read encrypted AES key".to_string())
         })?;
 
-    // AES-GCM nonce for key encapsulation
+    // AES nonce for key encapsulation
     let mut key_enc_aes_nonce_bytes = [0u8; 12];
     cursor
         .read_exact(&mut key_enc_aes_nonce_bytes)
         .map_err(|_| {
             CryptoError::InvalidZombieFile(
-                "Failed to read AES-GCM nonce for key encapsulation".to_string(),
+                "Failed to read AES nonce for key encapsulation".to_string(),
             )
         })?;
     let key_enc_aes_nonce = Nonce::<Aes256Gcm>::from_slice(&key_enc_aes_nonce_bytes);
 
-    // AES-GCM nonce for file content
+    // AES nonce for file content
     let mut file_aes_nonce_bytes = [0u8; 12];
     cursor.read_exact(&mut file_aes_nonce_bytes).map_err(|_| {
-        CryptoError::InvalidZombieFile("Failed to read AES-GCM nonce for file content".to_string())
+        CryptoError::InvalidZombieFile("Failed to read AES nonce for file content".to_string())
     })?;
     let file_aes_nonce = Nonce::<Aes256Gcm>::from_slice(&file_aes_nonce_bytes);
 
     debug!("Parsed .zombie header");
 
-    // Ciphertext + AES-GCM tag extraction
+    // Ciphertext + GCM tag extraction
     let mut file_content_ciphertext_with_tag = Vec::new();
     encrypted_file.read_to_end(&mut file_content_ciphertext_with_tag)?;
     debug!(
@@ -272,7 +269,7 @@ pub fn decrypt(path: &Path, private_key: &StaticSecret) -> Result<PathBuf, Crypt
         file_content_ciphertext_with_tag.len()
     );
 
-    // 3. ECIES-like decapsulation for the file AES key (with AES-GCM)
+    // 3. ECIES-like decapsulation for the AES key (with GCM tag)
     let ephemeral_public = PublicKey::from(ephemeral_public_key);
     let shared_secret = private_key.diffie_hellman(&ephemeral_public);
     debug!("Derived shared secret with ECDH");
@@ -286,7 +283,7 @@ pub fn decrypt(path: &Path, private_key: &StaticSecret) -> Result<PathBuf, Crypt
     .map_err(|_| CryptoError::KdfError)?;
     let key_enc_aes_key = aes_gcm::Key::<Aes256Gcm>::from_slice(&key_enc_aes_key_derived_bytes);
     let cipher_key_enc_aes_gcm = Aes256Gcm::new(key_enc_aes_key);
-    debug!("Derived AES-GCM key for key encapsulation decryption");
+    debug!("Derived AES key for key encapsulation decryption");
 
     let file_aes_key_bytes = cipher_key_enc_aes_gcm
         .decrypt(key_enc_aes_nonce, encrypted_file_aes_key_with_tag.as_ref())
@@ -294,17 +291,14 @@ pub fn decrypt(path: &Path, private_key: &StaticSecret) -> Result<PathBuf, Crypt
             if e.to_string().contains("tag verification failed") {
                 CryptoError::AuthenticationTagMismatch
             } else {
-                CryptoError::SymmetricDecryptError(format!(
-                    "AES-GCM decryption of file AES key failed: {:?}",
-                    e
-                ))
+                CryptoError::SymmetricDecryptError(format!("AES key decryption failed: {:?}", e))
             }
         })?;
     let file_aes_key = aes_gcm::Key::<Aes256Gcm>::from_slice(&file_aes_key_bytes);
     let cipher_file_aes_gcm = Aes256Gcm::new(file_aes_key);
-    debug!("File AES key decrypted");
+    debug!("AES key decrypted");
 
-    // 4. Decrypt file content with AES-GCM
+    // 4. Decrypt file content (ciphertext) with AES
     let plaintext = cipher_file_aes_gcm
         .decrypt(file_aes_nonce, file_content_ciphertext_with_tag.as_ref())
         .map_err(|e| {
@@ -312,7 +306,7 @@ pub fn decrypt(path: &Path, private_key: &StaticSecret) -> Result<PathBuf, Crypt
                 CryptoError::AuthenticationTagMismatch
             } else {
                 CryptoError::SymmetricDecryptError(format!(
-                    "AES-GCM decryption of file content failed: {:?}",
+                    "Ffile content decryption failed: {:?}",
                     e
                 ))
             }
