@@ -18,44 +18,39 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum CryptoError {
-    #[error("File I/O error during crypto operation: {0}")]
+    #[error("I/O error: {0}")]
     Io(#[from] io::Error),
 
     #[error("Failed to generate random bytes: {0}")]
-    RandomGenError(#[from] rand_core::Error),
+    Random(#[from] rand_core::Error),
 
-    #[error("Symmetric key encryption failed: {0}")]
-    SymmetricEncryptError(String),
+    #[error("Encryption failed: {0}")]
+    Encryption(String),
+
+    #[error("Decryption failed: {0}")]
+    Decryption(String),
+
+    #[error("Authentication tag mismatch. Data might be corrupted or key is incorrect.")]
+    AuthenticationTag,
+
+    #[error("Base64 decoding failed: {0}")]
+    Base64(#[from] base64::DecodeError),
+
+    #[error("Invalid key length: expected 32 bytes.")]
+    InvalidKeyLength,
 
     #[error("Key derivation function (KDF) error.")]
     KdfError,
 
-    #[error("Invalid key length: expected 32 bytes.")]
-    InvalidKey,
-
-    #[error("Invalid zombie file format: {0}")]
-    InvalidZombieFile(String),
-
-    #[error("Symmetric key decryption failed: {0}")]
-    SymmetricDecryptError(String),
-
-    #[error(
-        "Authentication tag mismatch during decryption. Data might be tampered or key is incorrect."
-    )]
-    AuthenticationTagMismatch,
-
-    #[error("Base64 decoding failed: {0}")]
-    Base64DecodeError(#[from] base64::DecodeError),
-
-    #[error("Base64 decoding failed")]
-    InvalidLengthError,
+    #[error("Invalid file format: {0}")]
+    InvalidFileFormat(String),
 }
 
 #[derive(Error, Debug)]
 pub enum AppError {
-    #[error("Crypto error: {0}")]
+    #[error("Cryptographic operation failed: {0}")]
     Crypto(#[from] CryptoError),
 
-    #[error("I/O error: {0}")]
+    #[error("I/O operation failed: {0}")]
     Io(#[from] io::Error),
 }

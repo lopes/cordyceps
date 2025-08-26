@@ -95,9 +95,7 @@ pub fn encrypt(path: &Path, public_key: &PublicKey) -> Result<PathBuf, CryptoErr
         // because aes_gcm::aead::Error does NOT implement the trait
         // std::error::Error needed by thiserror in error.rs.
         // error handling in Rust is sometimes VERY frustrating.
-        .map_err(|e| {
-            CryptoError::SymmetricEncryptError(format!("File content encryption failed: {:?}", e))
-        })?;
+        .map_err(|e| CryptoError::Encryption(format!("File content encryption failed: {:?}", e)))?;
     debug!(
         "File content encrypted. Combined ciphertext+tag size: {}",
         ciphertext_with_tag.len()
@@ -130,9 +128,7 @@ pub fn encrypt(path: &Path, public_key: &PublicKey) -> Result<PathBuf, CryptoErr
     // Encrypt the file_aes_key_bytes with the derived AES key
     let encrypted_file_aes_key_with_tag = cipher_key_enc_aes_gcm
         .encrypt(key_enc_aes_nonce, file_aes_key_bytes.as_ref())
-        .map_err(|e| {
-            CryptoError::SymmetricEncryptError(format!("AES key encryption failed: {:?}", e))
-        })?;
+        .map_err(|e| CryptoError::Encryption(format!("AES key encryption failed: {:?}", e)))?;
     debug!("AES key encrypted");
 
     // 5. .zombie file creation and opening for writing
@@ -202,10 +198,10 @@ pub fn decrypt(path: &Path, private_key: &StaticSecret) -> Result<PathBuf, Crypt
     let mut magic_read = [0u8; 4];
     cursor
         .read_exact(&mut magic_read)
-        .map_err(|_| CryptoError::InvalidZombieFile("Failed to read magic bytes".to_string()))?;
+        .map_err(|_| CryptoError::InvalidFileFormat("Failed to read magic bytes".to_string()))?;
     if &magic_read != MAGIC_BYTES {
         error!("Invalid magic bytes found in header");
-        return Err(CryptoError::InvalidZombieFile(
+        return Err(CryptoError::InvalidFileFormat(
             "Invalid magic bytes".to_string(),
         ));
     }
@@ -215,13 +211,13 @@ pub fn decrypt(path: &Path, private_key: &StaticSecret) -> Result<PathBuf, Crypt
     let mut version_read = [0u8; 1];
     cursor
         .read_exact(&mut version_read)
-        .map_err(|_| CryptoError::InvalidZombieFile("Failed to read version byte".to_string()))?;
+        .map_err(|_| CryptoError::InvalidFileFormat("Failed to read version byte".to_string()))?;
     if version_read[0] != FILE_FORMAT_VERSION {
         error!(
             "Unsupported file format version: {}, expected {}",
             version_read[0], FILE_FORMAT_VERSION
         );
-        return Err(CryptoError::InvalidZombieFile(
+        return Err(CryptoError::InvalidFileFormat(
             "Unsupported version".to_string(),
         ));
     }
@@ -230,7 +226,7 @@ pub fn decrypt(path: &Path, private_key: &StaticSecret) -> Result<PathBuf, Crypt
     // Ephemeral public key (32 bytes)
     let mut ephemeral_public_key = [0u8; 32];
     cursor.read_exact(&mut ephemeral_public_key).map_err(|_| {
-        CryptoError::InvalidZombieFile("Failed to read ephemeral public key".to_string())
+        CryptoError::InvalidFileFormat("Failed to read ephemeral public key".to_string())
     })?;
 
     // Encrypted AES key (+ 16 byte GCM tag)
@@ -238,7 +234,7 @@ pub fn decrypt(path: &Path, private_key: &StaticSecret) -> Result<PathBuf, Crypt
     cursor
         .read_exact(&mut encrypted_file_aes_key_with_tag)
         .map_err(|_| {
-            CryptoError::InvalidZombieFile("Failed to read encrypted AES key".to_string())
+            CryptoError::InvalidFileFormat("Failed to read encrypted AES key".to_string())
         })?;
 
     // AES nonce for key encapsulation
@@ -246,7 +242,7 @@ pub fn decrypt(path: &Path, private_key: &StaticSecret) -> Result<PathBuf, Crypt
     cursor
         .read_exact(&mut key_enc_aes_nonce_bytes)
         .map_err(|_| {
-            CryptoError::InvalidZombieFile(
+            CryptoError::InvalidFileFormat(
                 "Failed to read AES nonce for key encapsulation".to_string(),
             )
         })?;
@@ -255,7 +251,7 @@ pub fn decrypt(path: &Path, private_key: &StaticSecret) -> Result<PathBuf, Crypt
     // AES nonce for file content
     let mut file_aes_nonce_bytes = [0u8; 12];
     cursor.read_exact(&mut file_aes_nonce_bytes).map_err(|_| {
-        CryptoError::InvalidZombieFile("Failed to read AES nonce for file content".to_string())
+        CryptoError::InvalidFileFormat("Failed to read AES nonce for file content".to_string())
     })?;
     let file_aes_nonce = Nonce::<Aes256Gcm>::from_slice(&file_aes_nonce_bytes);
 
@@ -289,9 +285,9 @@ pub fn decrypt(path: &Path, private_key: &StaticSecret) -> Result<PathBuf, Crypt
         .decrypt(key_enc_aes_nonce, encrypted_file_aes_key_with_tag.as_ref())
         .map_err(|e| {
             if e.to_string().contains("tag verification failed") {
-                CryptoError::AuthenticationTagMismatch
+                CryptoError::AuthenticationTag
             } else {
-                CryptoError::SymmetricDecryptError(format!("AES key decryption failed: {:?}", e))
+                CryptoError::Decryption(format!("AES key decryption failed: {:?}", e))
             }
         })?;
     let file_aes_key = aes_gcm::Key::<Aes256Gcm>::from_slice(&file_aes_key_bytes);
@@ -303,12 +299,9 @@ pub fn decrypt(path: &Path, private_key: &StaticSecret) -> Result<PathBuf, Crypt
         .decrypt(file_aes_nonce, file_content_ciphertext_with_tag.as_ref())
         .map_err(|e| {
             if e.to_string().contains("tag verification failed") {
-                CryptoError::AuthenticationTagMismatch
+                CryptoError::AuthenticationTag
             } else {
-                CryptoError::SymmetricDecryptError(format!(
-                    "Ffile content decryption failed: {:?}",
-                    e
-                ))
+                CryptoError::Decryption(format!("Ffile content decryption failed: {:?}", e))
             }
         })?;
     debug!(
@@ -380,7 +373,7 @@ pub fn b64_decode(key_b64: &str) -> Result<[u8; 32], CryptoError> {
     let decoded_vec = STANDARD_NO_PAD.decode(key_b64)?;
 
     if decoded_vec.len() != 32 {
-        return Err(CryptoError::InvalidLengthError);
+        return Err(CryptoError::InvalidKeyLength);
     }
 
     let fixed_array: [u8; 32] = decoded_vec.try_into().unwrap();
@@ -403,7 +396,7 @@ pub fn load_private_key(key: &Path) -> Result<StaticSecret, CryptoError> {
     let key_b64 = read_to_string(key)?;
     let key_bytes = b64_decode(key_b64.trim())?;
     let key_array =
-        <[u8; 32]>::try_from(key_bytes.as_slice()).map_err(|_| CryptoError::InvalidKey)?;
+        <[u8; 32]>::try_from(key_bytes.as_slice()).map_err(|_| CryptoError::InvalidKeyLength)?;
     Ok(StaticSecret::from(key_array))
 }
 
@@ -422,6 +415,6 @@ pub fn load_public_key(key: &Path) -> Result<PublicKey, CryptoError> {
     let key_b64 = read_to_string(key)?;
     let key_bytes = b64_decode(key_b64.trim())?;
     let key_array =
-        <[u8; 32]>::try_from(key_bytes.as_slice()).map_err(|_| CryptoError::InvalidKey)?;
+        <[u8; 32]>::try_from(key_bytes.as_slice()).map_err(|_| CryptoError::InvalidKeyLength)?;
     Ok(PublicKey::from(key_array))
 }
