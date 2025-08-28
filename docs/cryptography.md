@@ -46,6 +46,7 @@ graph LR
         K --> L
         I -- Encapsulation nonce --> L
         B -- File content nonce --> L
+        B -- File content AES key --> J
         L --> O[Deliverable: File header]
 
         O --> P[Write to encrypted .zombie file]
