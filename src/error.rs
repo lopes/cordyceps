@@ -53,4 +53,7 @@ pub enum AppError {
 
     #[error("I/O operation failed: {0}")]
     Io(#[from] io::Error),
+
+    #[error("HTTP error: {0}")]
+    Http(#[from] reqwest::Error),
 }
