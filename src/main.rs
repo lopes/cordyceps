@@ -32,6 +32,7 @@ mod cli;
 mod crypto;
 mod error;
 mod fsutils;
+mod net;
 
 use log::error;
 
