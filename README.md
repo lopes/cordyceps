@@ -11,6 +11,9 @@
 ## What is Cordyceps?
 Cordyceps simulates the behavior of a typical ransomware: it encrypts files on a target machine, exfiltrates them to a remote server, and allows for their recovery via decryption—assuming possession of the correct private key material. It is designed for educational use in understanding ransomware internals and for testing endpoint detection and response (EDR) tools in controlled, ethical environments.
 
+### Demo
+[![asciicast](https://asciinema.org/a/8zdHiPgIrX6m05ahHkCPlRtyX.svg)](https://asciinema.org/a/8zdHiPgIrX6m05ahHkCPlRtyX)
+
 
 ## Purpose
 Cordyceps was developed as a hands-on learning project to build practical skills in Rust—specifically around command-line interface design, networking, and data serialization—while experimenting with hybrid cryptographic schemes like ECIES (Elliptic Curve Integrated Encryption Scheme), and implementing public-key-based key management. Additionally, it serves as a tool for analyzing ransomware behavior and testing the detection capabilities of endpoint security solutions like EDRs in controlled environments.
