@@ -23,15 +23,15 @@ use tokio::fs;
 
 use crate::error::AppError;
 
-/// Upload a single file to the server, preserving its file name.
+/// Uploads a single file to the server.
 ///
 /// # Arguments
-/// - `client`: A reqwest Client
-/// - `base_url`: The server's address, like `http://127.0.0.1:2673`
-/// - `local_path`: Full path to the file, like `/home/user/foo/bar.txt`
+/// - `client`: An HTTP client instance.
+/// - `base_url`: The server's base address (e.g., `http://127.0.0.1:2673`).
+/// - `local_path`: The full path to the local file to upload.
 ///
 /// # Returns
-/// The HTTP status code on success or an AppError if it fails.
+/// Returns the HTTP status code on success or an `AppError` on failure.
 pub async fn upload_file(
     client: &Client,
     base_url: &str,
@@ -63,8 +63,8 @@ pub async fn upload_file(
 
     info!("Uploading {:?} -> {}", local_path, url);
 
-    // Read the entire file content into memory but for large files,
-    // a streaming solution is preferred.
+    // Read the entire file into memory. For large files, a streaming
+    // solution would be preferable.
     let file_content = fs::read(local_path).await?;
 
     let file_part = multipart::Part::bytes(file_content)

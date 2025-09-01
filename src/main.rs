@@ -21,8 +21,9 @@
 //! ```
 //!
 //! ## Contributing & License
-//! Contributions are welcome! Please see the
-//! [CONTRIBUTING.md](https://github.com/lopes/cordyceps) file for guidelines.
+//! Contributions are welcome! Please see the project's
+//! [README.md](https://github.com/lopes/cordyceps#contributing) file for
+//! guidelines.
 //!
 //! This project is licensed under the **MIT License**.
 //!

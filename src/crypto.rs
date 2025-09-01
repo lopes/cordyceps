@@ -45,8 +45,8 @@ const FILE_FORMAT_VERSION: u8 = 0x01;
 /// ```
 const ZOMBIE_HEADER_SIZE: usize = 109;
 
-/// Encrypts a file using AES-GCM wit 256-bit key for content and ECIES-like key
-/// encapsulation for the AES key using Curve25519--x25519-dalek.
+/// Encrypts a file using a 256-bit AES-GCM key for content and an ECIES-like
+/// scheme for AES key encapsulation using Curve25519 (via x25519-dalek).
 ///
 /// The encrypted file will have a `.zombie` extension and its header will
 /// include:
@@ -91,10 +91,8 @@ pub fn encrypt(path: &Path, public_key: &PublicKey) -> Result<PathBuf, CryptoErr
     // 3. Encrypt file content with AES-GCM
     let ciphertext_with_tag = cipher_file_aes_gcm
         .encrypt(file_aes_nonce, plaintext.as_ref())
-        // map_err is the most effective way to convert error types here
-        // because aes_gcm::aead::Error does NOT implement the trait
-        // std::error::Error needed by thiserror in error.rs.
-        // error handling in Rust is sometimes VERY frustrating.
+        // map_err is used to convert the error type, as aes_gcm::aead::Error
+        // does not implement the std::error::Error trait needed by thiserror.
         .map_err(|e| CryptoError::Encryption(format!("File content encryption failed: {:?}", e)))?;
     debug!(
         "File content encrypted. Combined ciphertext+tag size: {}",
@@ -322,9 +320,9 @@ pub fn decrypt(path: &Path, private_key: &StaticSecret) -> Result<PathBuf, Crypt
     Ok(decrypted_path)
 }
 
-/// Generates a new 32 bytes (256 bits) Curve25519 key pair.
+/// Generates a new 32-byte (256-bit) Curve25519 key pair.
 ///
-/// Both private and public key are encoded in base 64 for better storing and
+/// Both the private and public keys are Base64-encoded for easier storage and
 /// sharing.
 ///
 /// # Returns
@@ -341,9 +339,10 @@ pub fn generate_keypair() -> Result<([u8; 32], [u8; 32]), CryptoError> {
 
 /// Encodes a byte slice into a Base64 string.
 ///
-/// This function takes a byte slice and encodes it into a standard Base64 string
-/// using the `STANDARD_NO_PAD` engine. This is a common choice for cryptographic
-/// keys or hashes as it omits the trailing padding characters (`=`).
+/// This function takes a byte slice and encodes it into a standard Base64
+/// string using the `STANDARD_NO_PAD` engine. This is a common choice for
+/// cryptographic keys or hashes as it omits the trailing padding characters
+///  (`=`).
 ///
 /// # Arguments
 /// - `key_bytes`: The byte slice (`&[u8]`) to be encoded.
@@ -356,9 +355,10 @@ pub fn b64_encode(key_bytes: &[u8]) -> String {
 
 /// Decodes a Base64 string into a byte vector.
 ///
-/// This function decodes a Base64 string using the `STANDARD` engine, which can
-/// successfully decode both padded and unpadded Base64 strings. It returns an
-/// `AppError` if the input string contains invalid Base64 characters.
+/// This function decodes a Base64 string using the `STANDARD` engine, which
+/// can successfully decode both padded and unpadded Base64 strings. It
+/// returns an `AppError` if the input string contains invalid Base64
+/// characters.
 ///
 /// The function assures to return a fixed-length array of 32 bytes because its
 /// the expected input for the encryption function.
@@ -367,8 +367,8 @@ pub fn b64_encode(key_bytes: &[u8]) -> String {
 /// - `key_b64`: The Base64-encoded string slice (`&str`) to be decoded.
 ///
 /// # Returns
-/// A `Result` containing the decoded bytes ([u8; 32]) on success or an
-/// `AppError` if the decoding fails.
+/// A `Result` containing the decoded bytes ([u8; 32]) on success or a
+/// `CryptoError` if the decoding fails.
 pub fn b64_decode(key_b64: &str) -> Result<[u8; 32], CryptoError> {
     let decoded_vec = STANDARD_NO_PAD.decode(key_b64)?;
 

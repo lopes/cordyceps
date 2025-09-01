@@ -5,11 +5,11 @@
 **Cordyceps** is an educational, Rust-based command-line **ransomware** ☣️ designed for academic and research purposes. It demonstrates the core mechanisms of file encryption, exfiltration, and decryption using modern cryptographic practices.
 
 > [!CAUTION]
-> This project is intended **strictly for educational use** in information security courses, penetration testing labs, or research environments. Unauthorized use of this tool—especially outside of controlled, lawful contexts—may be illegal and unethical. The author disclaim any responsibility for misuse or harm resulting from this software.
+> This project is intended **strictly for educational use** in information security courses, penetration testing labs, or research environments. Unauthorized use of this tool—especially outside of controlled, lawful contexts—may be illegal and unethical. The author disclaims any responsibility for misuse or harm resulting from this software.
 
 
 ## What is Cordyceps?
-Cordyceps simulates the behavior of a typical ransomware: it encrypts files on a target machine, exfiltrates them to a remote server, and allows for their recovery via decryption—assuming possession of the correct private key material. It is designed for educational use in understanding ransomware internals and for testing endpoint detection and response (EDR) tools in controlled, ethical environments.
+Cordyceps simulates the behavior of a typical ransomware: it encrypts files on a target machine, exfiltrates them to a remote server, and allows for their recovery via decryption—assuming possession of the correct private key. It is designed for educational use in understanding ransomware internals and for testing endpoint detection and response (EDR) tools in controlled, ethical environments.
 
 ### Demo
 [![asciicast](https://asciinema.org/a/8zdHiPgIrX6m05ahHkCPlRtyX.svg)](https://asciinema.org/a/8zdHiPgIrX6m05ahHkCPlRtyX)
@@ -31,7 +31,7 @@ It provides a practical platform for studying:
 
 ## Key Features
 - 🔄 **Dual Operation Modes**: Supports both `encrypt` and `decrypt` commands for flexible operation.
-- 🔒 **Strong Cryptography**: Uses **AES-GCM** for file encryption and **ECIES (Curve25519)** for secure key exchange with Perfect Forward Secrecy.
+- 🔒 **Strong Cryptography**: Uses **AES-GCM** for file encryption and **ECIES (based on Curve25519)** for secure key exchange, providing Perfect Forward Secrecy.
 - 🧟 **`.zombie` Format**: Each encrypted file is stored in a custom `.zombie` format containing:
   - Metadata
   - Ephemeral public key
@@ -64,7 +64,7 @@ Cordyceps uses subcommands to handle different modes of operation. To use the to
 #### `generate` Command
 Use the `generate` command to create a new Curve25519 key pair to start encrypting (public key) and decrypting (private key) files.
 
-- `-p, --path <DIRECTORY>`: Specified the path to store the key pair. Default: current directory (`.`). The keys will be saved as `main-private.key` and `main-public.key`.
+- `-p, --path <DIRECTORY>`: Specifies the path to store the key pair. Default: current directory (`.`). The keys will be saved as `main-private.key` and `main-public.key`.
 
 #### `encrypt` Command
 Use the `encrypt` command to begin the encryption and exfiltration process.
@@ -82,7 +82,7 @@ Use the `decrypt` command to restore `.zombie` files using the provided private 
 - `-n, --no-delete`: Prevents the `.zombie` file from being deleted after successful decryption. Default: `false`, the `.zombie` file is deleted.
 
 ### Exfiltration
-Exfiltration is an optional step for the encryption routine. The simplest form to implement it is to use Python's [uploadserver](https://pypi.org/project/uploadserver/). The easiest way of deploying it on the localhost is shown below:
+Exfiltration is an optional step for the encryption routine. The simplest way to implement it is to use Python's [uploadserver](https://pypi.org/project/uploadserver/). The easiest way of deploying it on the localhost is shown below:
 
 ```sh
 python3 -m pip install --user uploadserver
@@ -120,7 +120,7 @@ cordyceps decrypt -p /path/to/zombie_files -k /path/to/your/main-private.key
 - **Main Public Key**: For **encryption** operations, the main Curve25519 public key must be provided via the `--key` CLI option. This key is used to establish the shared secret for encrypting the AES key.
 - **Main Private Key**: For **decryption** operations, the corresponding Curve25519 private key must be explicitly provided by the user via the `--key` CLI option. **It is paramount to keep this private key highly secure and never distribute it with the client application.**
 
-Cordyceps is shipped with the `generate` command that creates a new keypair.
+Cordyceps is shipped with the `generate` command that creates a new key pair.
 
 
 ## Contributing

@@ -30,7 +30,7 @@ pub enum CryptoError {
     #[error("Decryption failed: {0}")]
     Decryption(String),
 
-    #[error("Authentication tag mismatch. Data might be corrupted or key is incorrect.")]
+    #[error("Authentication tag mismatch. Data may be corrupted or the key is incorrect.")]
     AuthenticationTag,
 
     #[error("Base64 decoding failed: {0}")]

@@ -63,7 +63,7 @@ struct DecryptArgs {
 #[derive(Parser, Debug)]
 #[command(about = "Generate new main key pair")]
 struct GenerateArgs {
-    /// Path to store the keypair
+    /// Path to store the key pair
     #[arg(short = 'p', long, default_value = ".")]
     path: PathBuf,
 }
