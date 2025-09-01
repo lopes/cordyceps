@@ -59,4 +59,7 @@ pub enum AppError {
 
     #[error("HTTP error: {0}")]
     Http(#[from] reqwest::Error),
+
+    #[error("One or more files failed to process.")]
+    PartialFailure,
 }

