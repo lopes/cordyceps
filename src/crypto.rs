@@ -376,7 +376,9 @@ pub fn b64_decode(key_b64: &str) -> Result<[u8; 32], CryptoError> {
         return Err(CryptoError::InvalidKeyLength);
     }
 
-    let fixed_array: [u8; 32] = decoded_vec.try_into().unwrap();
+    let fixed_array: [u8; 32] = decoded_vec
+        .try_into()
+        .map_err(|_| CryptoError::InvalidKeyLength)?;
     Ok(fixed_array)
 }
 
@@ -395,9 +397,9 @@ pub fn b64_decode(key_b64: &str) -> Result<[u8; 32], CryptoError> {
 pub fn load_private_key(key: &Path) -> Result<StaticSecret, CryptoError> {
     let key_b64 = read_to_string(key)?;
     let key_bytes = b64_decode(key_b64.trim())?;
-    let key_array =
-        <[u8; 32]>::try_from(key_bytes.as_slice()).map_err(|_| CryptoError::InvalidKeyLength)?;
-    Ok(StaticSecret::from(key_array))
+    // let key_array =
+    //     <[u8; 32]>::try_from(key_bytes.as_slice()).map_err(|_| CryptoError::InvalidKeyLength)?;
+    Ok(StaticSecret::from(key_bytes))
 }
 
 /// Loads a Base64-encoded public key from a file and returns a `PublicKey`.
@@ -414,7 +416,7 @@ pub fn load_private_key(key: &Path) -> Result<StaticSecret, CryptoError> {
 pub fn load_public_key(key: &Path) -> Result<PublicKey, CryptoError> {
     let key_b64 = read_to_string(key)?;
     let key_bytes = b64_decode(key_b64.trim())?;
-    let key_array =
-        <[u8; 32]>::try_from(key_bytes.as_slice()).map_err(|_| CryptoError::InvalidKeyLength)?;
-    Ok(PublicKey::from(key_array))
+    // let key_array =
+    //     <[u8; 32]>::try_from(key_bytes.as_slice()).map_err(|_| CryptoError::InvalidKeyLength)?;
+    Ok(PublicKey::from(key_bytes))
 }

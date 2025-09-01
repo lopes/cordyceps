@@ -44,6 +44,9 @@ pub enum CryptoError {
 
     #[error("Invalid file format: {0}")]
     InvalidFileFormat(String),
+
+    #[error("Key verification failed after generation.")]
+    KeyVerification,
 }
 
 #[derive(Error, Debug)]
