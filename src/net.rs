@@ -54,10 +54,12 @@ pub async fn upload_file(
     let url = format!("{}/upload", base_url.trim_end_matches('/'));
 
     // ASCII-only filename for maximum compatibility
-    let sanitized_file_name = file_name
-        .chars()
-        .filter(|c| c.is_ascii_alphanumeric() || *c == '.' || *c == '-' || *c == '_')
-        .collect::<String>();
+    let mut sanitized_file_name = String::with_capacity(file_name.len());
+    for c in file_name.chars() {
+        if c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_') {
+            sanitized_file_name.push(c);
+        }
+    }
 
     let final_file_name = if sanitized_file_name.is_empty() {
         "upload".to_string()
