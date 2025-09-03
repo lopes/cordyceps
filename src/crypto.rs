@@ -55,8 +55,8 @@ impl ZombieHeader {
     /// Reads a header from any stream that implements `io::Read`.
     fn from_reader<R: Read>(mut reader: R) -> Result<Self, CryptoError> {
         let mut magic_read = [0u8; 4];
-        reader.read_exact(&mut magic_read).map_err(|_| {
-            CryptoError::InvalidFileFormat("Failed to read magic bytes".to_string())
+        reader.read_exact(&mut magic_read).map_err(|e| {
+            CryptoError::InvalidFileFormat(format!("Failed to read magic bytes: {}", e))
         })?;
         if magic_read != *MAGIC_BYTES {
             return Err(CryptoError::InvalidFileFormat(
@@ -65,8 +65,8 @@ impl ZombieHeader {
         }
 
         let mut version_read = [0u8; 1];
-        reader.read_exact(&mut version_read).map_err(|_| {
-            CryptoError::InvalidFileFormat("Failed to read version byte".to_string())
+        reader.read_exact(&mut version_read).map_err(|e| {
+            CryptoError::InvalidFileFormat(format!("Failed to read version byte: {}", e))
         })?;
         if version_read[0] != FILE_FORMAT_VERSION {
             return Err(CryptoError::InvalidFileFormat(
@@ -77,29 +77,36 @@ impl ZombieHeader {
         let mut ephemeral_public_key_bytes = [0u8; 32];
         reader
             .read_exact(&mut ephemeral_public_key_bytes)
-            .map_err(|_| {
-                CryptoError::InvalidFileFormat("Failed to read ephemeral public key".to_string())
+            .map_err(|e| {
+                CryptoError::InvalidFileFormat(format!(
+                    "Failed to read ephemeral public key: {}",
+                    e
+                ))
             })?;
 
         let mut encrypted_file_aes_key_with_tag = [0u8; 48];
         reader
             .read_exact(&mut encrypted_file_aes_key_with_tag)
-            .map_err(|_| {
-                CryptoError::InvalidFileFormat("Failed to read encrypted AES key".to_string())
+            .map_err(|e| {
+                CryptoError::InvalidFileFormat(format!("Failed to read encrypted AES key: {}", e))
             })?;
 
         let mut key_enc_aes_nonce_bytes = [0u8; 12];
         reader
             .read_exact(&mut key_enc_aes_nonce_bytes)
-            .map_err(|_| {
-                CryptoError::InvalidFileFormat(
-                    "Failed to read AES nonce for key encapsulation".to_string(),
-                )
+            .map_err(|e| {
+                CryptoError::InvalidFileFormat(format!(
+                    "Failed to read AES nonce for key encapsulation: {}",
+                    e
+                ))
             })?;
 
         let mut file_aes_nonce_bytes = [0u8; 12];
-        reader.read_exact(&mut file_aes_nonce_bytes).map_err(|_| {
-            CryptoError::InvalidFileFormat("Failed to read AES nonce for file content".to_string())
+        reader.read_exact(&mut file_aes_nonce_bytes).map_err(|e| {
+            CryptoError::InvalidFileFormat(format!(
+                "Failed to read AES nonce for file content: {}",
+                e
+            ))
         })?;
 
         Ok(Self {
@@ -331,15 +338,15 @@ pub fn decrypt(path: &Path, private_key: &StaticSecret) -> Result<PathBuf, Crypt
 /// sharing.
 ///
 /// # Returns
-/// A `Result` with a `[u8; 32]` tuple with private and public keys on success
-/// or a `CryptoError` if key generation or file saving fails.
-pub fn generate_keypair() -> Result<([u8; 32], [u8; 32]), CryptoError> {
+/// A `Result` with a `(StaticSecret, PublicKey)` tuple on success or a
+/// `CryptoError` if key generation fails.
+pub fn generate_keypair() -> Result<(StaticSecret, PublicKey), CryptoError> {
     info!("Generating new main key pair");
 
     let private_key = StaticSecret::random_from_rng(OsRng);
     let public_key: PublicKey = (&private_key).into();
 
-    Ok((private_key.to_bytes(), public_key.to_bytes()))
+    Ok((private_key, public_key))
 }
 
 /// Encodes a byte slice into a Base64 string.

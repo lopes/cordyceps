@@ -84,8 +84,8 @@ pub fn run() -> Result<(), AppError> {
     debug!("Arguments: {:?}", args);
 
     match args {
-        Cli::Encrypt(args) => sporulate(&args.path, &args.key, &args.no_delete, &args.server),
-        Cli::Decrypt(args) => disinfect(&args.path, &args.key, &args.no_delete),
+        Cli::Encrypt(args) => sporulate(&args.path, &args.key, args.no_delete, &args.server),
+        Cli::Decrypt(args) => disinfect(&args.path, &args.key, args.no_delete),
         Cli::Generate(args) => germinate(&args.path),
     }
 }

