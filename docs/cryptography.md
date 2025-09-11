@@ -10,11 +10,13 @@ To solve this confidentiality problem, we leverage an [Elliptic Curve Integrated
 1. A 256-bit [Curve25519](https://en.wikipedia.org/wiki/Curve25519) main public key is provided to our function. This is a static public key belonging to the intended recipient.
 2. We generate a new, one-time ephemeral 256-bit key pair for each encryption operation.
 3. Using our ephemeral private key and the recipient's main public key, we perform an [Elliptic Curve Diffie-Hellman (ECDH)](https://en.wikipedia.org/wiki/Elliptic-curve_Diffie%E2%80%93Hellman) key exchange to derive a unique shared secret.
-4. This shared secret is then used as input to a Key Derivation Function (KDF). The KDF generates a new, unique AES-GCM key specifically for encrypting our file's symmetric AES key.
+4. This shared secret is then used as input to HKDF-SHA256 (HMAC-based Key Derivation Function with SHA-256). The HKDF uses no salt and the info parameter `"key_encapsulation_aes_key_derivation"` to generate a new, unique AES-GCM key specifically for encrypting our file's symmetric AES key.
 
 This two-step process means that in order to decrypt the file, the recipient must possess the corresponding main private key. With this private key and the ephemeral public key from the file's header, they can recreate the same shared secret. This allows them to decrypt the encapsulated AES key, which is then used to decrypt the main file content.
 
-The final encrypted file is a structured package. Its header contains all the necessary components for secure decryption: the ephemeral public key, the encrypted AES key and its GCM authentication tag, and the nonces used for both the key encapsulation and file content encryption. This modular design ensures that all the information required for decryption is available in one file, while the main private key remains securely offline.
+The final encrypted file is a structured package. Its header contains all the necessary components for secure decryption: magic bytes ("CORD"), file format version, the ephemeral public key, the encrypted AES key and its GCM authentication tag, and the nonces used for both the key encapsulation and file content encryption. This modular design ensures that all the information required for decryption is available in one file, while the main private key remains securely offline.
+
+Keys are stored and transmitted in Base64 format (without padding) for easier handling and text-based storage.
 
 The next sections show graphically how both encryption and decryption processes work.
 
@@ -32,7 +34,7 @@ graph LR
         E[Input: Recipient main public key] --> F{Generate ephemeral key pair}
         F --> G{ECDH: Derive shared secret}
         E --> G
-        G --> H{HKDF: Derive new AES key for encapsulation}
+        G --> H{HKDF-SHA256: Derive new AES key for encapsulation}
         H --> I{Generate random AES nonce for encapsulation}
         I --> J{Encrypt File AES key with new key and nonce}
         J --> K[Result: Encapsulated AES key + GCM tag]
@@ -40,8 +42,8 @@ graph LR
 
     subgraph Stage 3: File Assembly
         L(Final assembly)
-        M[Magic bytes] --> L
-        N[File format version] --> L
+        M[Magic bytes: CORD] --> L
+        N[File format version: 1] --> L
         F -- Ephemeral public key --> L
         K --> L
         I -- Encapsulation nonce --> L
@@ -66,7 +68,7 @@ graph LR
             direction TB
             E[Input: Main private key] --> F{ECDH: Derive shared secret}
             C -- Ephemeral public key --> F
-            F --> G{HKDF: Derive encapsulation AES Key}
+            F --> G{HKDF-SHA256: Derive encapsulation AES Key}
             G --> H{Decrypt encapsulated file key}
             C -- Encapsulated AES key + GCM tag --> H
             C -- Encapsulation nonce --> H

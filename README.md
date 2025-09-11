@@ -30,15 +30,16 @@ It provides a practical platform for studying:
 
 
 ## Key Features
-- 🔄 **Dual Operation Modes**: Supports both `encrypt` and `decrypt` commands for flexible operation.
-- 🔒 **Strong Cryptography**: Uses **AES-GCM** for file encryption and **ECIES (based on Curve25519)** for secure key exchange, providing Perfect Forward Secrecy.
+- 🔄 **Triple Operation Modes**: Supports `generate`, `encrypt`, and `decrypt` commands for complete key management and file processing.
+- 🔒 **Strong Cryptography**: Uses **AES-256-GCM** for file encryption and **ECIES-like scheme (based on x25519/Curve25519 with HKDF-SHA256)** for secure key exchange, providing Perfect Forward Secrecy.
 - 🧟 **`.zombie` Format**: Each encrypted file is stored in a custom `.zombie` format containing:
-  - Metadata
-  - Ephemeral public key
-  - Encrypted symmetric key
-  - Nonces
-  - Ciphertext
-- 📁 **Recursive File Handling**: Automatically walks through directories, encrypts eligible files, and optionally deletes the original plaintext versions.
+  - Magic bytes ("CORD") and version
+  - Ephemeral public key (32 bytes)
+  - Encrypted AES key with authentication tag (48 bytes)
+  - Key encapsulation nonce (12 bytes)
+  - File content nonce (12 bytes)
+  - Encrypted file content with authentication tag
+- 📁 **Recursive File Handling**: Automatically walks through directories, encrypts eligible files (with built-in exclusions for system files and development directories), and optionally deletes the original plaintext versions.
 - 🌐 **Secure Network Exfiltration**: Transmits encrypted data over **HTTP** or **HTTPS** with support for target path specification and basic error handling.
 
 
@@ -59,12 +60,21 @@ cp target/release/cordyceps $HOME/.local/bin/
 Cordyceps operates via command-line arguments, allowing flexible control over its behavior.
 
 ### Command Line Options
-Cordyceps uses subcommands to handle different modes of operation. To use the tool, you must specify either the `encrypt` or `decrypt` command, each with its own set of options. If in doubt, run `cordyceps help`.
+Cordyceps uses subcommands to handle different modes of operation. You must specify one of three commands: `generate`, `encrypt`, or `decrypt`, each with its own set of options. If in doubt, run `cordyceps help`.
 
 #### `generate` Command
-Use the `generate` command to create a new Curve25519 key pair to start encrypting (public key) and decrypting (private key) files.
+Use the `generate` command to create a new Curve25519 key pair for encrypting (public key) and decrypting (private key) files. Keys are stored in Base64 format without padding.
 
 - `-p, --path <DIRECTORY>`: Specifies the path to store the key pair. Default: current directory (`.`). The keys will be saved as `main-private.key` and `main-public.key`.
+
+### File Processing Behavior
+Cordyceps automatically excludes certain files and directories during encryption to avoid system corruption and improve performance:
+
+**Excluded Directories:** `.git`, `.svn`, `node_modules`, `target`, `__pycache__`, `.idea`, `.vscode`, `.Spotlight-V100`, `.Trashes`, `.fseventsd`
+
+**Excluded Files:** `.zombie`, `.DS_Store`, `.AppleDouble`, `.LSOverride`, `.VolumeIcon.icns`, `.apdisk`, `.metadata_never_index`, `.dmg`, `.pkg`, `.tmp`, `.bak`, `.swp`, `.swo`
+
+The tool continues processing even if individual files fail, reporting a partial failure at the end. During decryption, it specifically targets files with the `.zombie` extension.
 
 #### `encrypt` Command
 Use the `encrypt` command to begin the encryption and exfiltration process.
@@ -98,7 +108,9 @@ curl -X POST -F "files=@./foobar.fb" http://localhost:2673/upload
 > [!NOTE]
 > Since Cordyceps only exfiltrates encrypted files, using HTTP without TLS is perfectly fine.
 
-If it worked, the exfiltration routine under [Cordyceps::net](src/net.rs) should work.🤞
+The upload expects files to be sent to the `/upload` endpoint with the form field name `files`. Filenames are automatically sanitized to ASCII-only characters for compatibility.
+
+If the test worked, the exfiltration routine under [Cordyceps::net](src/net.rs) should work.🤞
 
 ### Examples
 #### Encryption Example
@@ -117,10 +129,11 @@ cordyceps decrypt -p /path/to/zombie_files -k /path/to/your/main-private.key
 
 
 ## Key Management
-- **Main Public Key**: For **encryption** operations, the main Curve25519 public key must be provided via the `--key` CLI option. This key is used to establish the shared secret for encrypting the AES key.
+- **Key Generation**: Use the `generate` command to create a new Curve25519 key pair. Keys are stored as Base64-encoded files (without padding).
+- **Main Public Key**: For **encryption** operations, the main Curve25519 public key must be provided via the `--key` CLI option. This key is used to establish the shared secret for encrypting the AES key using ECDH + HKDF-SHA256.
 - **Main Private Key**: For **decryption** operations, the corresponding Curve25519 private key must be explicitly provided by the user via the `--key` CLI option. **It is paramount to keep this private key highly secure and never distribute it with the client application.**
 
-Cordyceps is shipped with the `generate` command that creates a new key pair.
+Each encryption operation generates a unique ephemeral key pair, ensuring Perfect Forward Secrecy even if the main private key is compromised.
 
 
 ## Contributing

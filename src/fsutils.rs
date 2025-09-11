@@ -83,10 +83,9 @@ static EXCLUDED_FILES_SET: LazyLock<HashSet<&'static str>> =
 /// Returns a unit type if finished with success or an AppError if it fails.
 ///
 /// # TODO
-/// 1. Add streaming for file I/O to avoid loading the entire file into memory.
-/// 2. Waiting for a file upload before start the next encryption is a
+/// 1. Waiting for a file upload before start the next encryption is a
 ///    bottleneck. I could leverage `tokio` to upload files concurrently.
-/// 3. I could add parallelism/concurrency to encrypt files.
+/// 2. I could add parallelism/concurrency to encrypt files.
 #[tokio::main]
 pub async fn sporulate(
     path: &Path,

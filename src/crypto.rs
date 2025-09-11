@@ -142,6 +142,10 @@ impl ZombieHeader {
 /// # Returns
 /// A `Result` containing the path to the newly created `.zombie` file on
 /// success, or a `CryptoError` if encryption fails.
+///
+/// # TODO
+/// 1. Add streaming for file I/O to avoid loading the entire file into memory.
+///    This might require changing the symmetric encryption algorithm.
 pub fn encrypt(path: &Path, public_key: &PublicKey) -> Result<PathBuf, CryptoError> {
     info!("Starting encryption for file: {:?}", path);
 
@@ -281,6 +285,10 @@ pub fn encrypt(path: &Path, public_key: &PublicKey) -> Result<PathBuf, CryptoErr
 /// # Returns
 /// A `Result` containing the path to the newly created decrypted file on
 /// success, or a `CryptoError` if decryption fails.
+///
+/// # TODO
+/// 1. Similarly to `encryption`, this function should also add streaming for file I/O
+///    to avoid loading the entire file into memory.
 pub fn decrypt(path: &Path, private_key: &StaticSecret) -> Result<PathBuf, CryptoError> {
     info!("Starting decryption for file: {:?}", path);
 
