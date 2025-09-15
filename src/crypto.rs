@@ -146,17 +146,17 @@ impl ZombieHeader {
 /// # TODO
 /// 1. Add streaming for file I/O to avoid loading the entire file into memory.
 ///    This might require changing the symmetric encryption algorithm.
+/// 2. Split this function into crypto logic and I/O for test-friendly.
 pub fn encrypt(path: &Path, public_key: &PublicKey) -> Result<PathBuf, CryptoError> {
     info!("Starting encryption for file: {:?}", path);
 
     // 1. Read file content
     let mut file = File::open(path)?;
-    let file_size = file.metadata()?.len() as usize;
+    let file_size =
+        usize::try_from(file.metadata()?.len()).map_err(|_| CryptoError::FileTooLarge)?;
     let mut plaintext = Vec::with_capacity(file_size);
-    file.read_to_end(&mut plaintext)?; // TODO: read file by chunks
-    if log::log_enabled!(log::Level::Debug) {
-        debug!("Read {} bytes from {:?}", plaintext.len(), path);
-    }
+    file.read_to_end(&mut plaintext)?;
+    debug!("Read {} bytes from {:?}", plaintext.len(), path);
 
     // 2. Generate random AES key and nonce for file content encryption (single RNG call)
     let mut random_bytes = [0u8; 44]; // 32 bytes key + 12 bytes nonce
@@ -169,9 +169,7 @@ pub fn encrypt(path: &Path, public_key: &PublicKey) -> Result<PathBuf, CryptoErr
     let cipher_file_aes_gcm = Aes256Gcm::new(file_aes_key);
     let file_aes_nonce = Nonce::<Aes256Gcm>::from_slice(&file_aes_nonce_bytes);
 
-    if log::log_enabled!(log::Level::Debug) {
-        debug!("Generated AES key and nonce for file content");
-    }
+    debug!("Generated AES key and nonce for file content");
 
     // 3. Encrypt file content with AES-GCM
     let ciphertext_with_tag = cipher_file_aes_gcm
@@ -180,26 +178,18 @@ pub fn encrypt(path: &Path, public_key: &PublicKey) -> Result<PathBuf, CryptoErr
         // does not implement the std::error::Error trait needed by thiserror.
         .map_err(|e| CryptoError::Encryption(format!("File content encryption failed: {:?}", e)))?;
 
-    if log::log_enabled!(log::Level::Debug) {
-        debug!(
-            "File content encrypted. Combined ciphertext+tag size: {}",
-            ciphertext_with_tag.len()
-        );
-    }
+    debug!(
+        "File content encrypted. Combined ciphertext+tag size: {}",
+        ciphertext_with_tag.len()
+    );
 
     // 4. ECIES-like key encapsulation for the AES key
     let ephemeral_private = EphemeralSecret::random_from_rng(OsRng);
     let ephemeral_public = PublicKey::from(&ephemeral_private);
-
-    if log::log_enabled!(log::Level::Debug) {
-        debug!("Generated ephemeral Curve25519 key pair");
-    }
+    debug!("Generated ephemeral Curve25519 key pair");
 
     let shared_secret = ephemeral_private.diffie_hellman(public_key);
-
-    if log::log_enabled!(log::Level::Debug) {
-        debug!("Derived shared secret using ECDH");
-    }
+    debug!("Derived shared secret using ECDH");
 
     // Use HKDF to derive an AES key for encrypting the file_aes_key
     let hkdf = Hkdf::<sha2::Sha256>::new(None, shared_secret.as_bytes());
@@ -216,18 +206,14 @@ pub fn encrypt(path: &Path, public_key: &PublicKey) -> Result<PathBuf, CryptoErr
     OsRng.fill_bytes(&mut key_enc_aes_nonce_bytes);
     let key_enc_aes_nonce = Nonce::<Aes256Gcm>::from_slice(&key_enc_aes_nonce_bytes);
 
-    if log::log_enabled!(log::Level::Debug) {
-        debug!("Derived AES key and nonce for key encapsulation");
-    }
+    debug!("Derived AES key and nonce for key encapsulation");
 
     // Encrypt the file_aes_key_bytes with the derived AES key
     let encrypted_file_aes_key_with_tag_vec = cipher_key_enc_aes_gcm
         .encrypt(key_enc_aes_nonce, file_aes_key_bytes.as_ref())
         .map_err(|e| CryptoError::Encryption(format!("AES key encryption failed: {:?}", e)))?;
 
-    if log::log_enabled!(log::Level::Debug) {
-        debug!("AES key encrypted");
-    }
+    debug!("AES key encrypted");
 
     let encrypted_file_aes_key_with_tag: [u8; 48] = encrypted_file_aes_key_with_tag_vec
         .try_into()
@@ -250,17 +236,12 @@ pub fn encrypt(path: &Path, public_key: &PublicKey) -> Result<PathBuf, CryptoErr
     };
     header.write_to(&mut output_file)?;
 
-    if log::log_enabled!(log::Level::Debug) {
-        debug!("Wrote encrypted file header");
-    }
+    debug!("Wrote encrypted file header");
 
     // 7. Write the content ciphertext (with tag)
     output_file.write_all(&ciphertext_with_tag)?;
 
-    if log::log_enabled!(log::Level::Debug) {
-        debug!("File content written to encrypted file");
-    }
-
+    debug!("File content written to encrypted file");
     Ok(zombie_path)
 }
 
@@ -289,36 +270,29 @@ pub fn encrypt(path: &Path, public_key: &PublicKey) -> Result<PathBuf, CryptoErr
 /// # TODO
 /// 1. Similarly to `encryption`, this function should also add streaming for file I/O
 ///    to avoid loading the entire file into memory.
+/// /// 2. Split this function into crypto logic and I/O for test-friendly.
 pub fn decrypt(path: &Path, private_key: &StaticSecret) -> Result<PathBuf, CryptoError> {
     info!("Starting decryption for file: {:?}", path);
 
     // 1. Read the .zombie file and parse the header
     let mut encrypted_file = File::open(path)?;
     let header = ZombieHeader::from_reader(&mut encrypted_file)?;
-
-    if log::log_enabled!(log::Level::Debug) {
-        debug!("Parsed .zombie header from {:?}", path);
-    }
+    debug!("Parsed .zombie header from {:?}", path);
 
     // 2. Read the rest of the file (ciphertext) with pre-allocated capacity
-    let file_size = encrypted_file.metadata()?.len() as usize;
+    let file_size =
+        usize::try_from(encrypted_file.metadata()?.len()).map_err(|_| CryptoError::FileTooLarge)?;
     let remaining_size = file_size.saturating_sub(ZombieHeader::HEADER_SIZE);
     let mut file_content_ciphertext_with_tag = Vec::with_capacity(remaining_size);
     encrypted_file.read_to_end(&mut file_content_ciphertext_with_tag)?;
-
-    if log::log_enabled!(log::Level::Debug) {
-        debug!(
-            "Read ciphertext+tag. Size: {}",
-            file_content_ciphertext_with_tag.len()
-        );
-    }
+    debug!(
+        "Read ciphertext+tag. Size: {}",
+        file_content_ciphertext_with_tag.len()
+    );
 
     // 3. ECIES-like decapsulation for the AES key
     let shared_secret = private_key.diffie_hellman(&header.ephemeral_public_key);
-
-    if log::log_enabled!(log::Level::Debug) {
-        debug!("Derived shared secret with ECDH");
-    }
+    debug!("Derived shared secret with ECDH");
 
     let hkdf = Hkdf::<sha2::Sha256>::new(None, shared_secret.as_bytes());
     let mut key_enc_aes_key_derived_bytes = [0u8; 32];
@@ -330,9 +304,7 @@ pub fn decrypt(path: &Path, private_key: &StaticSecret) -> Result<PathBuf, Crypt
     let key_enc_aes_key = aes_gcm::Key::<Aes256Gcm>::from_slice(&key_enc_aes_key_derived_bytes);
     let cipher_key_enc_aes_gcm = Aes256Gcm::new(key_enc_aes_key);
 
-    if log::log_enabled!(log::Level::Debug) {
-        debug!("Derived AES key for key encapsulation decryption");
-    }
+    debug!("Derived AES key for key encapsulation decryption");
 
     let file_aes_key_bytes = cipher_key_enc_aes_gcm
         .decrypt(
@@ -348,10 +320,7 @@ pub fn decrypt(path: &Path, private_key: &StaticSecret) -> Result<PathBuf, Crypt
         })?;
     let file_aes_key = aes_gcm::Key::<Aes256Gcm>::from_slice(&file_aes_key_bytes);
     let cipher_file_aes_gcm = Aes256Gcm::new(file_aes_key);
-
-    if log::log_enabled!(log::Level::Debug) {
-        debug!("AES key decrypted");
-    }
+    debug!("AES key decrypted");
 
     // 4. Decrypt file content (ciphertext) with AES
     let plaintext = cipher_file_aes_gcm
@@ -366,13 +335,10 @@ pub fn decrypt(path: &Path, private_key: &StaticSecret) -> Result<PathBuf, Crypt
                 CryptoError::Decryption(format!("File content decryption failed: {:?}", e))
             }
         })?;
-
-    if log::log_enabled!(log::Level::Debug) {
-        debug!(
-            "File content decrypted. Plaintext size: {}",
-            plaintext.len()
-        );
-    }
+    debug!(
+        "File content decrypted. Plaintext size: {}",
+        plaintext.len()
+    );
 
     // 5. Construct the decrypted file path
     let mut decrypted_path = path.to_path_buf();
@@ -461,11 +427,14 @@ pub fn b64_decode(key_b64: &str) -> Result<[u8; 32], CryptoError> {
 /// # Returns
 /// A `Result` containing the `StaticSecret` on success, or a `CryptoError` if
 /// the file cannot be read, decoding fails, or the key is not 32 bytes long.
+///
+/// # TODO
+/// 1. Split this function into crypto logic and I/O for test-friendly.
+/// 2. Use generics for one function be able to deal with public and private
+///    keys, like `pub fn load_key<K>(path: &Path) -> Result<K, CryptoError>`.
 pub fn load_private_key(key: &Path) -> Result<StaticSecret, CryptoError> {
     let key_b64 = read_to_string(key)?;
     let key_bytes = b64_decode(key_b64.trim())?;
-    // let key_array =
-    //     <[u8; 32]>::try_from(key_bytes.as_slice()).map_err(|_| CryptoError::InvalidKeyLength)?;
     Ok(StaticSecret::from(key_bytes))
 }
 
@@ -480,10 +449,13 @@ pub fn load_private_key(key: &Path) -> Result<StaticSecret, CryptoError> {
 /// # Returns
 /// A `Result` containing the `PublicKey` on success, or a `CryptoError` if
 /// the file cannot be read, decoding fails, or the key is not 32 bytes long.
+///
+/// # TODO
+/// 1. Split this function into crypto logic and I/O for test-friendly.
+/// 2. Use generics for one function be able to deal with public and private
+///    keys, like `pub fn load_key<K>(path: &Path) -> Result<K, CryptoError>`.
 pub fn load_public_key(key: &Path) -> Result<PublicKey, CryptoError> {
     let key_b64 = read_to_string(key)?;
     let key_bytes = b64_decode(key_b64.trim())?;
-    // let key_array =
-    //     <[u8; 32]>::try_from(key_bytes.as_slice()).map_err(|_| CryptoError::InvalidKeyLength)?;
     Ok(PublicKey::from(key_bytes))
 }

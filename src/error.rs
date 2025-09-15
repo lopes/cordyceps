@@ -45,6 +45,9 @@ pub enum CryptoError {
     #[error("Invalid file format: {0}")]
     InvalidFileFormat(String),
 
+    #[error("File is too large for this platform's architecture.")]
+    FileTooLarge,
+
     #[error("Key verification failed after generation.")]
     KeyVerification,
 }
