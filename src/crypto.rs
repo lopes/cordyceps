@@ -254,8 +254,8 @@ pub fn encrypt(path: &Path, public_key: &PublicKey) -> Result<PathBuf, CryptoErr
 /// - AES nonce for key encapsulation
 /// - AES nonce for file content encryption
 ///
-///   Note: GCM tags are concatenated with their respective ciphertexts
-///   by `aes_gcm`.
+/// Note: GCM tags are concatenated with their respective ciphertexts by
+/// `aes_gcm`.
 ///
 /// # Arguments:
 /// - `path`: A reference to the path of the `.zombie` file to be decrypted.
@@ -269,7 +269,7 @@ pub fn encrypt(path: &Path, public_key: &PublicKey) -> Result<PathBuf, CryptoErr
 /// # TODO
 /// 1. Similarly to `encryption`, this function should also add streaming for file I/O
 ///    to avoid loading the entire file into memory.
-/// /// 2. Split this function into crypto logic and I/O for test-friendly.
+/// 2. Split this function into crypto logic and I/O for test-friendly.
 pub fn decrypt(path: &Path, private_key: &StaticSecret) -> Result<PathBuf, CryptoError> {
     info!("Starting decryption for file: {:?}", path);
 
