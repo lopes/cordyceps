@@ -3,12 +3,14 @@
 //! This module handles all command-line interface logic, including argument
 //! parsing and delegation to encryption or decryption routines.
 
-use crate::error::AppError;
 use clap::Parser;
 use log::{debug, info};
 use std::path::PathBuf;
 
-use crate::fsutils::{disinfect, germinate, sporulate};
+use crate::{
+    error::AppError,
+    fsutils::{disinfect, germinate, sporulate},
+};
 
 /// Cordyceps' commands
 #[derive(Parser, Debug)]
