@@ -8,8 +8,8 @@ use log::{debug, info};
 use std::path::PathBuf;
 
 use crate::{
+    core::{disinfect, germinate, sporulate},
     error::AppError,
-    fsutils::{disinfect, germinate, sporulate},
 };
 
 /// Cordyceps' commands
@@ -71,7 +71,7 @@ struct GenerateArgs {
 }
 
 /// Parses CLI arguments and executes the appropriate application mode
-/// (encrypt or decrypt).
+/// (encrypt, decrypt, or generate keypair).
 ///
 /// This function serves as the entry point for command-line interaction.
 /// It determines the mode selected by the user and delegates to the

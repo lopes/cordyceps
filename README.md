@@ -68,7 +68,7 @@ Use the `generate` command to create a new Curve25519 key pair for encrypting (p
 - `-p, --path <DIRECTORY>`: Specifies the path to store the key pair. Default: current directory (`.`). The keys will be saved as `main-private.key` and `main-public.key`.
 
 ### File Processing Behavior
-Cordyceps automatically excludes certain files and directories during encryption to avoid system corruption and improve performance:
+Cordyceps automatically excludes certain files and directories during encryption to avoid system corruption and improve performance, like:
 
 **Excluded Directories:** `.git`, `.svn`, `node_modules`, `target`, `__pycache__`, `.idea`, `.vscode`, `.Spotlight-V100`, `.Trashes`, `.fseventsd`
 

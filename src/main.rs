@@ -30,9 +30,9 @@
 //! ---
 
 mod cli;
+mod core;
 mod crypto;
 mod error;
-mod fsutils;
 mod net;
 
 use log::error;

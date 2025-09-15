@@ -158,12 +158,13 @@ pub fn encrypt(path: &Path, public_key: &PublicKey) -> Result<PathBuf, CryptoErr
     file.read_to_end(&mut plaintext)?;
     debug!("Read {} bytes from {:?}", plaintext.len(), path);
 
-    // 2. Generate random AES key and nonce for file content encryption (single RNG call)
-    let mut random_bytes = [0u8; 44]; // 32 bytes key + 12 bytes nonce
+    // 2. Generate random data for encryption (AES key and nonces)
+    let mut random_bytes = [0u8; 56]; // 32 bytes key + 12 bytes nonce + 12 bytes key-enc nonce
     OsRng.try_fill_bytes(&mut random_bytes)?;
 
     let file_aes_key_bytes: [u8; 32] = random_bytes[..32].try_into().unwrap();
-    let file_aes_nonce_bytes: [u8; 12] = random_bytes[32..].try_into().unwrap();
+    let file_aes_nonce_bytes: [u8; 12] = random_bytes[32..44].try_into().unwrap();
+    let key_enc_aes_nonce_bytes: [u8; 12] = random_bytes[44..].try_into().unwrap();
 
     let file_aes_key = aes_gcm::Key::<Aes256Gcm>::from_slice(&file_aes_key_bytes);
     let cipher_file_aes_gcm = Aes256Gcm::new(file_aes_key);
@@ -202,8 +203,6 @@ pub fn encrypt(path: &Path, public_key: &PublicKey) -> Result<PathBuf, CryptoErr
     let key_enc_aes_key = aes_gcm::Key::<Aes256Gcm>::from_slice(&key_enc_aes_key_derived_bytes);
     let cipher_key_enc_aes_gcm = Aes256Gcm::new(key_enc_aes_key);
 
-    let mut key_enc_aes_nonce_bytes = [0u8; 12];
-    OsRng.fill_bytes(&mut key_enc_aes_nonce_bytes);
     let key_enc_aes_nonce = Nonce::<Aes256Gcm>::from_slice(&key_enc_aes_nonce_bytes);
 
     debug!("Derived AES key and nonce for key encapsulation");
@@ -388,10 +387,9 @@ pub fn b64_encode(key_bytes: &[u8]) -> String {
 
 /// Decodes a Base64 string into a byte vector.
 ///
-/// This function decodes a Base64 string using the `STANDARD` engine, which
-/// can successfully decode both padded and unpadded Base64 strings. It
-/// returns an `AppError` if the input string contains invalid Base64
-/// characters.
+/// This function decodes a Base64 string using the `STANDARD_NO_PAD` engine,
+/// which does not handle padding. It returns a `CryptoError` if the input
+/// string contains invalid Base64 characters.
 ///
 /// The function assures to return a fixed-length array of 32 bytes because its
 /// the expected input for the encryption function.
