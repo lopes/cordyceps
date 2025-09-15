@@ -36,6 +36,8 @@ use crate::error::AppError;
 /// # TODO
 /// 1. Open the file as a stream and pass that to reqwest to avoid loading
 ///    the whole file into memory at once.
+/// 2. Properly use `async` and `tokio` by implementing parallelism in
+///    `fsutils::sporulate`--it's forward-looking architectural decision.
 pub async fn upload_file(
     client: &Client,
     base_url: &str,
