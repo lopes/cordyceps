@@ -1,6 +1,6 @@
 [package]
 name = "cordyceps"
-version = "0.7.7"
+version = "0.7.8"
 authors = ["Joe Lopes <lopes.id>"]
 description = "Rust ransomware, for learning not looting"
 edition = "2024"
