@@ -18,7 +18,7 @@ use crate::{
         EXTENSION, b64_decode, b64_encode, decrypt, encrypt, generate_keypair, load_private_key,
         load_public_key,
     },
-    error::AppError,
+    error::{AppError, CryptoError},
     net::upload_file,
 };
 
@@ -253,6 +253,9 @@ pub fn disinfect(path: &Path, key: &Path, no_delete: bool) -> Result<(), AppErro
 ///
 /// # Returns
 /// A `Result` with a unit type on success of an AppError if the routine fails.
+///
+/// # TODO
+/// 1. Add more context to the key files, like using JSON format.
 pub fn germinate(path: &Path) -> Result<(), AppError> {
     let (private_key, public_key) = generate_keypair()?;
 
@@ -275,12 +278,12 @@ pub fn germinate(path: &Path) -> Result<(), AppError> {
     // as expected.
     let decoded_prikey = b64_decode(&private_key_b64)?;
     if decoded_prikey != *private_key.as_bytes() {
-        return Err(AppError::Crypto(crate::error::CryptoError::KeyVerification));
+        return Err(AppError::Crypto(CryptoError::KeyVerification));
     }
 
     let decoded_pubkey = b64_decode(&public_key_b64)?;
     if decoded_pubkey != *public_key.as_bytes() {
-        return Err(AppError::Crypto(crate::error::CryptoError::KeyVerification));
+        return Err(AppError::Crypto(CryptoError::KeyVerification));
     }
 
     Ok(())
