@@ -12,7 +12,7 @@ clap = { version = "4.5.42", features = ["derive"] }
 env_logger = "0.11.8"
 hkdf = "0.12.4"
 log = "0.4.27"
-rand = "0.8.5"
+rand = "0.10.2"
 rand_core = "0.6.4"
 reqwest = { version = "0.12.23", features = ["json", "multipart", "rustls-tls-manual-roots", "http2", "stream"] }
 sha2 = "0.10.9"
