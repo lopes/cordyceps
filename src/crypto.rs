@@ -18,7 +18,7 @@ use aes_gcm::{
 use base64::{Engine, engine::general_purpose::STANDARD_NO_PAD};
 use hkdf::Hkdf;
 use log::{debug, info};
-use rand::{RngCore, rngs::OsRng};
+use rand_core::{OsRng, RngCore};
 use x25519_dalek::{EphemeralSecret, PublicKey, StaticSecret};
 
 use crate::error::CryptoError;
