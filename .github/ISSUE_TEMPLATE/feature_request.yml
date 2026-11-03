@@ -1,0 +1,30 @@
+name: Feature / Enhancement
+description: "Propose an educational mechanic, architectural improvement, or documentation addition for Cordyceps"
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What gap, limitation, or operational friction exists today, and why does solving it matter?
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: "Architectural background, cryptographic or systems mechanism illustrated, affected modules (`src/`, `docs/`), and safety invariants."
+    validations:
+      required: true
+  - type: textarea
+    id: dod
+    attributes:
+      label: Definition of Done
+      description: Concrete deliverables, invariants, and verification criteria required to close this issue.
+      value: |
+        - [ ] Design questions resolved and educational safety boundaries verified
+        - [ ] Rust unit/integration tests added (`cargo test`)
+        - [ ] `cargo clippy` and `cargo fmt --check` pass cleanly
+        - [ ] Documentation updated (`docs/`, `README.md`)
+    validations:
+      required: true
