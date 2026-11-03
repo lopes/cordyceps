@@ -1,0 +1,50 @@
+name: Bug Report
+description: "Report a build, cryptographic, or runtime defect in Cordyceps"
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Report a defect, regression, or unexpected behavior in Cordyceps.
+  - type: dropdown
+    id: subsystem
+    attributes:
+      label: Affected Subsystem
+      options:
+        - "Cryptographic Primitives (X25519, HKDF, AES-GCM)"
+        - "Filesystem Traversal & I/O (`src/`)"
+        - "CLI & Argument Parsing"
+        - "Documentation (`docs/`, `README.md`)"
+        - "CI/CD & Cargo Dependencies"
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Description of the Bug
+      description: Clear and concise description of what is broken.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Exact commands, inputs, or steps that trigger the issue.
+      placeholder: |
+        1. Run `cargo test` or `cargo build --release`
+        2. Observe error
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What should happen instead.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Terminal Output / Error Logs
+      description: Paste relevant terminal output or stack trace here.
+      render: shell

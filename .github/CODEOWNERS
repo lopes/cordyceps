@@ -1,0 +1,14 @@
+# Global default code owners
+* @lopes
+
+# Rust Crate & Cryptography Modules
+/src/ @lopes
+/Cargo.toml @lopes
+/Cargo.lock @lopes
+
+# Documentation
+/docs/ @lopes
+/README.md @lopes
+
+# CI/CD Workflows & Repository Governance
+/.github/ @lopes
